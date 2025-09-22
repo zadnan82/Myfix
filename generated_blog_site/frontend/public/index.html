@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Generated with SEVDO" />
+    <title>SEVDO Blog_Site</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    
+    <script>
+      // SEVDO Action Handler - handles API calls from components
+      window.sevdoAct = function(action) {
+        console.log('SEVDO Action:', action);
+        
+        if (action.startsWith('api:')) {
+          // Parse action: "api:POST /api/contact|{'data': 'json'}"
+          const [apiPart, dataPart] = action.split('|');
+          const [method, url] = apiPart.substring(4).split(' ');
+          const data = dataPart ? JSON.parse(dataPart) : {};
+          
+          console.log('API Call:', {method, url, data});
+          
+          fetch(`http://localhost:8000${url}`, {
+            method: method,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: method !== 'GET' ? JSON.stringify(data) : undefined
+          })
+          .then(response => response.json())
+          .then(result => {
+            console.log('API Response:', result);
+            if (result.msg || result.message) {
+              alert(result.msg || result.message); // Simple user feedback
+            }
+          })
+          .catch(error => {
+            console.error('API Error:', error);
+            alert('Error: Could not connect to server');
+          });
+        } else {
+          console.log('Non-API action:', action);
+        }
+      };
+    </script>
+  </body>
+</html>

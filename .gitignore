@@ -1,0 +1,110 @@
+# Python Virtual Environments
+.venv/*
+venv/*
+.env/
+
+# SEVDO Generated Content
+logs/*
+tasks/*
+outputs/*
+.aider.*
+=* 
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
+# Testing
+.pytest_cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CI/CD
+.github/.env
+
+# AI Model files (not code models)
+*.model
+*.bin
+*.h5
+*.pkl
+*.joblib
+*.pt
+*.pth
+*.onnx
+
+
+.venv/*
+logs/*
+tasks/*
+.aider.*
+=* 
+venv/*
+.env
+tasks/
+logs/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+extra.txt
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.aider*
+
+logs*
+tasks*
+*.ssh
+__pycache__/
+*.pyc

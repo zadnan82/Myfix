@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e9; color: #2e7d32; }
+        .info { background: #e3f2fd; color: #1565c0; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Connection Debug Test</h1>
+    <button onclick="testWebSocketConnection()">Test WebSocket Connection</button>
+    <button onclick="testApiConnection()">Test API Connection</button>
+    <button onclick="clearLogs()">Clear Logs</button>
+    
+    <div id="logs"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            logs.appendChild(logDiv);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        async function testApiConnection() {
+            log('Testing API connection...', 'info');
+            
+            const apiUrl = 'https://api.sevdo.se/api/v1/system/health';
+            log(`API URL: ${apiUrl}`, 'info');
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                log(`API Response Status: ${response.status}`, response.ok ? 'success' : 'error');
+                log(`API Response Headers: ${JSON.stringify([...response.headers.entries()])}`, 'info');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`API Response Data: ${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    log(`API Error Response: ${errorText}`, 'error');
+                }
+            } catch (error) {
+                log(`API Connection Error: ${error.message}`, 'error');
+                log(`API Error Details: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`, 'error');
+            }
+        }
+
+        function testWebSocketConnection() {
+            log('Testing WebSocket connection...', 'info');
+            
+            const wsUrl = 'wss://api.sevdo.se/api/v1/ws/notifications?token=test-token';
+            log(`WebSocket URL: ${wsUrl}`, 'info');
+            log(`Current origin: ${window.location.origin}`, 'info');
+            log(`Current protocol: ${window.location.protocol}`, 'info');
+            
+            try {
+                const ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function(event) {
+                    log('WebSocket connection opened!', 'success');
+                    log(`WebSocket ready state: ${ws.readyState}`, 'info');
+                    ws.close();
+                };
+                
+                ws.onerror = function(error) {
+                    log(`WebSocket error occurred: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`, 'error');
+                    log(`WebSocket ready state: ${ws.readyState}`, 'info');
+                };
+                
+                ws.onclose = function(event) {
+                    log(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`, 'info');
+                };
+                
+                // Timeout test
+                setTimeout(() => {
+                    if (ws.readyState === WebSocket.CONNECTING) {
+                        log('WebSocket connection timeout (still connecting after 5s)', 'error');
+                        ws.close();
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                log(`WebSocket creation error: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-run tests on page load
+        window.onload = function() {
+            log('Page loaded. Running automatic tests...', 'info');
+            setTimeout(() => {
+                testApiConnection();
+                setTimeout(() => {
+                    testWebSocketConnection();
+                }, 2000);
+            }, 1000);
+        };
+    </script>
+</body>
+</html>
