@@ -8,6 +8,7 @@ import json
 import sys
 import shutil
 import re
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -221,6 +222,68 @@ class SevdoIntegrator:
             print(f"❌ Frontend generation failed: {e}")
             return False
 
+    def _build_react_app(self, frontend_dir: Path) -> bool:
+        """Build the React application for production"""
+        print("🔨 Building React application...")
+
+        try:
+            # Check if Node.js is available
+            subprocess.run(["node", "--version"], capture_output=True, check=True)
+            subprocess.run(["npm", "--version"], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("❌ Node.js or npm not found. Skipping React build.")
+            return False
+
+        try:
+            # Install dependencies
+            print("📦 Installing npm dependencies...")
+            result = subprocess.run(
+                ["npm", "install"],
+                cwd=frontend_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+            )
+
+            if result.returncode != 0:
+                print(f"❌ npm install failed: {result.stderr}")
+                return False
+
+            print("✅ Dependencies installed")
+
+            # Build for production
+            print("🏗️ Building React app for production...")
+            result = subprocess.run(
+                ["npm", "run", "build"],
+                cwd=frontend_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+            )
+
+            if result.returncode != 0:
+                print(f"❌ npm run build failed: {result.stderr}")
+                return False
+
+            # Check if build directory was created
+            build_dir = frontend_dir / "build"
+            if build_dir.exists():
+                print("✅ React app built successfully")
+                return True
+            else:
+                print("❌ Build directory not found after build")
+                return False
+
+        except subprocess.TimeoutExpired:
+            print("❌ React build timed out")
+            return False
+        except subprocess.CalledProcessError as e:
+            print(f"❌ React build failed: {e}")
+            return False
+        except Exception as e:
+            print(f"❌ Unexpected error during React build: {e}")
+            return False
+
     def generate_backend(
         self, template_name: str, config: Dict, output_dir: Path
     ) -> bool:
@@ -309,6 +372,13 @@ class SevdoIntegrator:
         if self.generate_frontend(template_name, output_path):
             success_count += 1
 
+            # Build React app after frontend generation
+            frontend_dir = output_path / "frontend"
+            if self._build_react_app(frontend_dir):
+                print("✅ React build completed successfully")
+            else:
+                print("⚠️  React build failed, but frontend source files are available")
+
         # Generate backend
         if self.generate_backend(template_name, config, output_path):
             success_count += 1
@@ -317,14 +387,14 @@ class SevdoIntegrator:
         if self._generate_project_files(output_path, config):
             success_count += 1
 
-        if success_count == 3:
+        if success_count >= 2:  # Frontend + Backend minimum
             print(f"\n✅ Full-stack app generated successfully!")
             print(f"📁 Location: {output_path.absolute()}")
 
             self._print_usage_instructions(output_path)
             return True
         else:
-            print(f"\n❌ Generation partially failed ({success_count}/3 components)")
+            print(f"\n❌ Generation failed ({success_count}/3 components)")
             return False
 
     def _generate_app_js(self, frontend_dir: Path, components: List[str]):
@@ -353,8 +423,12 @@ class SevdoIntegrator:
             path = route_mapping.get(comp, f"/{comp.lower()}")
             routes.append(f'          <Route path="{path}" element={{<{comp} />}} />')
 
-        app_content = f"""{chr(10).join(imports)}
+        # Add 404 route
+        routes.append(
+            '          <Route path="*" element={<div className="text-center py-20"><h1 className="text-2xl font-bold text-gray-900 mb-4">404 - Page Not Found</h1><p className="text-gray-600 mb-8">The page you\'re looking for doesn\'t exist.</p><button onClick={() => window.location.href = "/"} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg">Go Home</button></div>} />'
+        )
 
+        app_content = f"""{chr(10).join(imports)}
 function App() {{
   return (
     <Router>
@@ -366,7 +440,6 @@ function App() {{
     </Router>
   );
 }}
-
 export default App;"""
 
         app_file = frontend_dir / "src" / "App.js"
