@@ -9,18 +9,18 @@ const getApiBaseUrl = () => {
   }
   
   // Fallback based on build mode (only when no explicit API URL is set)
-  if (import.meta.env.PROD) {
-    // In production with split architecture, use API subdomain
-    if (typeof window !== 'undefined') {
-      const hostname = window.location.hostname;
-      const dynamicUrl = `https://api.${hostname}`;
-      console.log('[CONFIG] Using dynamic API URL:', dynamicUrl);
-      return dynamicUrl;
-    }
-    // Fallback for SSR or build time
-    console.log('[CONFIG] Using fallback API URL: https://api.sevdo.se');
-    return 'https://api.sevdo.se';
-  }
+  // if (import.meta.env.PROD) {
+  //   // In production with split architecture, use API subdomain
+  //   if (typeof window !== 'undefined') {
+  //     const hostname = window.location.hostname;
+  //     const dynamicUrl = `https://api.${hostname}`;
+  //     console.log('[CONFIG] Using dynamic API URL:', dynamicUrl);
+  //     return dynamicUrl;
+  //   }
+  //   // Fallback for SSR or build time
+  //   console.log('[CONFIG] Using fallback API URL: https://api.sevdo.se');
+  //   return 'https://api.sevdo.se';
+  // }
   
   console.log('[CONFIG] Using development API URL');
   return 'http://localhost:8000'; // Development default

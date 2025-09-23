@@ -2,11 +2,13 @@
 
 print("🚀 MAIN.PY LOADED - DEBUG TEST")
 
+import asyncio
 from datetime import datetime
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+import httpx
 import uvicorn
 import os
 import logging
@@ -17,7 +19,11 @@ from user_backend.app.core.exceptions import (
     ValidationError,
     DatabaseError,
 )
-from user_backend.app.db_setup import init_db
+from user_backend.app.core.security import get_current_active_user
+from user_backend.app.db_setup import get_db, init_db
+from user_backend.app.services import template_generator
+from user_backend.app.models import Project  # ADD THIS IMPORT
+from sqlalchemy.orm import Session  # ADD THIS IMPORT
 
 # Initialize logger
 try:
@@ -30,26 +36,27 @@ except ImportError:
     logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan events"""
-    # Startup
-    print("🚀 DEBUG: Lifespan function called!")
-    logger.info("🚀 Starting SEVDO User Backend API v2.0.0")
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     # Startup
+#     logger.info("🚀 Starting SEVDO Backend")
 
-    try:
-        init_db()
-        logger.info("✅ Database initialized successfully")
-    except Exception as e:
-        logger.error(f"❌ Database initialization failed: {str(e)}")
+# # Generate templates in background after 30 seconds
+# async def generate_templates_later():
+#     await asyncio.sleep(30)
+#     try:
+#         from user_backend.app.services import template_generator
 
-    # Routers are registered at module level now
-    logger.info("🔧 Routers should already be registered")
+#         await template_generator.generate_all_templates()
+#         logger.info("✅ Templates generated")
+#     except Exception as e:
+#         logger.error(f"Template generation failed: {e}")
 
-    yield
+# asyncio.create_task(generate_templates_later())
+# yield
 
-    # Shutdown
-    logger.info("🛑 Shutting down SEVDO User Backend API")
+# # Shutdown
+# logger.info("🛑 Shutting down")
 
 
 # Create FastAPI application
@@ -61,7 +68,7 @@ app = FastAPI(
     A comprehensive backend service with clean, organized endpoints for all SEVDO platform features.
     """,
     version="2.0.0",
-    lifespan=lifespan,
+    # lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/api/v1/openapi.json",
@@ -98,7 +105,7 @@ if os.getenv("SEVDO_ENV", "development") == "development":
     # Don't use "*" with credentials=True, add specific development origins instead
     dev_origins = [
         "http://localhost:3000",
-        "http://localhost:5173", 
+        "http://localhost:5173",
         "http://localhost:8080",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
@@ -120,17 +127,23 @@ app.add_middleware(
 print("🔧 DEBUG: WebSocket router registration...")
 try:
     from user_backend.app.api.v1.websockets import router as websocket_router
+
     app.include_router(websocket_router, prefix="/api/v1/ws", tags=["WebSocket"])
     print("✅ DEBUG: WebSocket router registered successfully!")
     print(f"✅ DEBUG: WebSocket routes available: {len(websocket_router.routes)}")
     for route in websocket_router.routes:
-        print(f"   - {route.path} ({route.methods if hasattr(route, 'methods') else 'WebSocket'})")
+        print(
+            f"   - {route.path} ({route.methods if hasattr(route, 'methods') else 'WebSocket'})"
+        )
 except ImportError as import_error:
     print(f"❌ DEBUG: WebSocket router import failed: {import_error}")
-    print("⚠️  This may be due to missing dependencies. WebSocket endpoints will not be available.")
+    print(
+        "⚠️  This may be due to missing dependencies. WebSocket endpoints will not be available."
+    )
 except Exception as e:
     print(f"❌ DEBUG: WebSocket router registration failed: {e}")
     import traceback
+
     traceback.print_exc()
 
 
@@ -214,11 +227,9 @@ core_routers = [
     {"name": "projects", "prefix": "/api/v1/projects", "tags": ["Projects"]},
     {"name": "sevdo", "prefix": "/api/v1/sevdo", "tags": ["Sevdo Builder"]},
     {"name": "tokens", "prefix": "/api/v1/tokens", "tags": ["Tokens"]},
-    {"name": "templates", "prefix": "/api/v1/templates",
-        "tags": ["Templates"]},
+    {"name": "templates", "prefix": "/api/v1/templates", "tags": ["Templates"]},
     {"name": "ai", "prefix": "/api/v1/ai", "tags": ["AI Integration"]},
-    {"name": "llm_editor", "prefix": "/api/v1/llm-editor",
-        "tags": ["LLM Editor"]},
+    {"name": "llm_editor", "prefix": "/api/v1/llm-editor", "tags": ["LLM Editor"]},
 ]
 
 # Enhanced routers (optional)
@@ -228,8 +239,7 @@ enhanced_routers = [
         "prefix": "/api/v1/analytics",
         "tags": ["Analytics & Reporting"],
     },
-    {"name": "system", "prefix": "/api/v1/system",
-        "tags": ["System Monitoring"]},
+    {"name": "system", "prefix": "/api/v1/system", "tags": ["System Monitoring"]},
     {
         "name": "user_preferences",
         "prefix": "/api/v1/preferences",
@@ -240,8 +250,11 @@ enhanced_routers = [
         "prefix": "/api/v1/notifications",
         "tags": ["Notifications"],
     },
-    {"name": "websockets", "prefix": "/api/v1/ws",
-        "tags": ["WebSocket", "Real-time Updates"]},
+    {
+        "name": "websockets",
+        "prefix": "/api/v1/ws",
+        "tags": ["WebSocket", "Real-time Updates"],
+    },
 ]
 
 
@@ -251,8 +264,7 @@ def register_router(router_config, required=True):
         # Check if already registered
         router_name = router_config["name"]
         if any(r["name"] == router_name for r in registered_routers):
-            logger.warning(
-                f"⚠️  Router {router_name} already registered, skipping...")
+            logger.warning(f"⚠️  Router {router_name} already registered, skipping...")
             return True
 
         # Import the router
@@ -264,8 +276,7 @@ def register_router(router_config, required=True):
         from fastapi import APIRouter
 
         if not isinstance(router, APIRouter):
-            raise ValueError(
-                f"Expected APIRouter instance, got {type(router)}")
+            raise ValueError(f"Expected APIRouter instance, got {type(router)}")
 
         # Include the router with explicit configuration
         app.include_router(
@@ -320,8 +331,7 @@ def register_router(router_config, required=True):
             }
         )
 
-        logger.error(
-            f"❌ Failed to register router {router_config['name']}: {str(e)}")
+        logger.error(f"❌ Failed to register router {router_config['name']}: {str(e)}")
         return False
 
 
@@ -330,7 +340,9 @@ def register_all_routers():
     logger.info("🚀 DEBUG: Starting router registration section...")
     logger.info(f"🔍 DEBUG: Core routers count: {len(core_routers)}")
     logger.info(f"🔍 DEBUG: Enhanced routers count: {len(enhanced_routers)}")
-    logger.info(f"🔍 DEBUG: Enhanced routers list: {[r['name'] for r in enhanced_routers]}")
+    logger.info(
+        f"🔍 DEBUG: Enhanced routers list: {[r['name'] for r in enhanced_routers]}"
+    )
 
     # Register core routers
     logger.info("🔧 Registering core routers...")
@@ -347,13 +359,15 @@ def register_all_routers():
     # Log summary
     core_registered = len([r for r in registered_routers if r["type"] == "core"])
     enhanced_registered = len(
-        [r for r in registered_routers if r["type"] == "enhanced"])
+        [r for r in registered_routers if r["type"] == "enhanced"]
+    )
     total_failed = len(failed_routers)
 
     logger.info(f"📊 Router registration summary:")
     logger.info(f"   ✅ Core routers: {core_registered}/{len(core_routers)}")
     logger.info(
-        f"   ⭐ Enhanced routers: {enhanced_registered}/{len(enhanced_routers)}")
+        f"   ⭐ Enhanced routers: {enhanced_registered}/{len(enhanced_routers)}"
+    )
     logger.info(f"   ❌ Failed: {total_failed}")
 
     if failed_routers:
@@ -364,6 +378,7 @@ def register_all_routers():
                 logger.error(f"   - {failure['name']}: {failure['error']}")
 
     logger.info("✅ Router registration completed")
+
 
 # =============================================================================
 # ROUTER REGISTRATION - Execute immediately when module loads
@@ -381,29 +396,208 @@ except Exception as e:
 # =============================================================================
 
 
-@app.get("/api/v1/status", tags=["API Info"])
-async def api_status():
-    """Get API status and registered endpoints"""
+# # Add this to your startup event
+# @app.on_event("startup")
+# async def startup_generate_templates():
+#     """Generate all templates on application startup"""
+#     logger.info("🚀 Generating templates on startup...")
 
-    return {
-        "api_version": "v1",
-        "status": "operational" if core_registered > 0 else "degraded",
-        "timestamp": datetime.utcnow().isoformat(),
-        "summary": {
-            "total_registered": len(registered_routers),
-            "core_routers": core_registered,
-            "enhanced_routers": enhanced_registered,
-            "failed_routers": total_failed,
-        },
-        "registered_routers": registered_routers,
-        "failed_routers": failed_routers if failed_routers else [],
-        "documentation": {"swagger_ui": "/docs", "redoc": "/redoc"},
-    }
+#     try:
+#         # Run in background to not block startup
+#         asyncio.create_task(template_generator.generate_all_templates())
+#         logger.info("✅ Template generation task started")
+#     except Exception as e:
+#         logger.error(f"❌ Failed to start template generation: {e}")
+
+
+# @app.get("/api/v1/status", tags=["API Info"])
+# async def api_status():
+#     """Get API status and registered endpoints"""
+
+#     return {
+#         "api_version": "v1",
+#         "status": "operational" if core_registered > 0 else "degraded",
+#         "timestamp": datetime.utcnow().isoformat(),
+#         "summary": {
+#             "total_registered": len(registered_routers),
+#             "core_routers": core_registered,
+#             "enhanced_routers": enhanced_registered,
+#             "failed_routers": total_failed,
+#         },
+#         "registered_routers": registered_routers,
+#         "failed_routers": failed_routers if failed_routers else [],
+#         "documentation": {"swagger_ui": "/docs", "redoc": "/redoc"},
+#     }
 
 
 # =============================================================================
 # ROOT ENDPOINTS
 # =============================================================================
+
+
+@app.post("/api/v1/projects/{project_id}/preview")
+async def create_project_preview(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),  # ADD THIS IF YOU HAVE AUTH
+):
+    """Create a live preview container for a project"""
+    try:
+        # Get project details
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Verify user owns the project (if using authentication)
+        # if project.user_id != current_user.id:
+        #     raise HTTPException(status_code=403, detail="Access denied")
+
+        # Get the generated project path from project config
+        project_path = project.config.get("output_directory")
+        if not project_path:
+            raise HTTPException(status_code=400, detail="Project not generated yet")
+
+        # Check if the project directory exists
+        if not os.path.exists(project_path):
+            raise HTTPException(
+                status_code=400, detail="Generated project files not found"
+            )
+
+        # Call preview manager to create the container
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://preview-manager:8080/previews",
+                json={"project_id": str(project_id), "project_path": project_path},
+                timeout=30.0,  # 30 second timeout
+            )
+
+            if response.status_code != 200:
+                error_detail = f"Preview manager error: {response.text}"
+                raise HTTPException(status_code=500, detail=error_detail)
+
+            preview_data = response.json()
+
+            # Update project with preview URL
+            if "config" not in project.config:
+                project.config = {}
+            project.config["preview_url"] = preview_data["url"]
+            project.config["preview_status"] = "running"
+            db.commit()
+
+            return {
+                "success": True,
+                "preview": preview_data,
+                "message": "Preview container started successfully",
+            }
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Preview manager timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Preview manager unavailable")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create preview: {str(e)}"
+        )
+
+
+@app.get("/api/v1/projects/{project_id}/preview")
+async def get_project_preview_status(project_id: str):
+    """Get preview status for a project"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"http://preview-manager:8080/previews/{project_id}", timeout=10.0
+            )
+
+            if response.status_code == 404:
+                return {
+                    "is_running": False,
+                    "message": "No preview running for this project",
+                }
+
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=500, detail="Failed to get preview status"
+                )
+
+            status_data = response.json()
+            return status_data
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Preview manager timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Preview manager unavailable")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get preview status: {str(e)}"
+        )
+
+
+@app.delete("/api/v1/projects/{project_id}/preview")
+async def stop_project_preview(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),  # ADD THIS IF YOU HAVE AUTH
+):
+    """Stop a project preview"""
+    try:
+        # Get project details
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Verify user owns the project (if using authentication)
+        # if project.user_id != current_user.id:
+        #     raise HTTPException(status_code=403, detail="Access denied")
+
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                f"http://preview-manager:8080/previews/{project_id}", timeout=10.0
+            )
+
+            if response.status_code == 404:
+                return {"message": "Preview was not running"}
+
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="Failed to stop preview")
+
+            # Update project config
+            if "config" in project.config:
+                project.config["preview_status"] = "stopped"
+                db.commit()
+
+            return {"success": True, "message": "Preview stopped successfully"}
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Preview manager timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Preview manager unavailable")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop preview: {str(e)}")
+
+
+@app.get("/api/v1/previews")
+async def list_all_previews():
+    """List all active previews (admin function)"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "http://preview-manager:8080/previews", timeout=10.0
+            )
+
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="Failed to list previews")
+
+            return response.json()
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Preview manager timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Preview manager unavailable")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list previews: {str(e)}"
+        )
 
 
 @app.get("/", tags=["Root"])

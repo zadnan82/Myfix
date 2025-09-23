@@ -1,0 +1,37 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies including Docker client
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    lsb-release \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add Docker's official GPG key and repository
+RUN mkdir -p /etc/apt/keyrings
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+RUN echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+    $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker CLI
+RUN apt-get update && apt-get install -y \
+    docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install fastapi uvicorn docker redis httpx aiohttp async-timeout python-dotenv
+
+# Copy preview manager code
+COPY preview-manager/ /app/preview-manager/
+
+# Create necessary directories
+RUN mkdir -p /app/preview-data /app/logs
+
+EXPOSE 8080
+
+# FIX: Run from the correct directory
+WORKDIR /app
+CMD ["python", "-m", "uvicorn", "preview-manager.router:app", "--host", "0.0.0.0", "--port", "8080"]
