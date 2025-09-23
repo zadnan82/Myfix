@@ -1,3 +1,4 @@
+from pathlib import Path
 import docker
 import asyncio
 import json
@@ -194,6 +195,52 @@ class PreviewManager:
             if data:
                 previews.append(json.loads(data))
         return previews
+
+    def create_preview_container(self, project_path: str, generation_id: str):
+        """Create optimized container for React app"""
+
+        dockerfile_content = f"""
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package.json first for better caching
+COPY frontend/package.json ./
+RUN npm install
+
+# Copy frontend source
+COPY frontend/ ./
+
+# Set environment for React dev server
+ENV CHOKIDAR_USEPOLLING=true
+ENV WDS_SOCKET_PORT=0
+ENV BROWSER=none
+ENV PORT=3000
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
+"""
+        dockerfile_path = Path(project_path) / "Dockerfile"
+        dockerfile_path.write_text(dockerfile_content)
+
+        # Build custom image
+        image_name = f"sevdo-preview-{generation_id}"
+        self.docker_client.images.build(
+            path=str(project_path), dockerfile="Dockerfile", tag=image_name, rm=True
+        )
+
+        container = self.docker_client.containers.run(
+            image=image_name,
+            name=f"preview-{generation_id}",
+            ports={"3000/tcp": self.get_available_port()},
+            detach=True,
+            remove=True,  # Auto-cleanup when stopped
+            mem_limit="512m",
+            network="sevdo2_sevdo-network",
+        )
+
+        return container
 
 
 # REMOVE the problematic initialization at the bottom

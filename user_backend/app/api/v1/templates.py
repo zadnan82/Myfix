@@ -4,10 +4,18 @@ import os
 import subprocess
 import asyncio
 import tempfile
+import threading
+import time
+import requests
 from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    StreamingResponse,
+    RedirectResponse,
+)
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 import logging
@@ -31,15 +39,8 @@ logger = logging.getLogger(__name__)
 # Templates directory path
 TEMPLATES_DIR = Path("/app/templates")
 
-logger.info(f"Templates directory: {TEMPLATES_DIR}")
-logger.info(f"Templates directory exists: {TEMPLATES_DIR.exists()}")
-
-if TEMPLATES_DIR.exists():
-    logger.info(
-        f"Templates found: {[d.name for d in TEMPLATES_DIR.iterdir() if d.is_dir()]}"
-    )
-else:
-    logger.warning(f"Templates directory does not exist: {TEMPLATES_DIR}")
+# Global dictionary to track running React servers
+active_react_servers = {}
 
 # =============================================================================
 # PYDANTIC MODELS
@@ -128,7 +129,7 @@ class GenerationResult(BaseModel):
 
 
 def get_template_metadata(template_dir: Path) -> Optional[SevdoTemplateMetadata]:
-    """Read SEVDO template metadata from template.json with better error handling"""
+    """Read SEVDO template metadata from template.json"""
     metadata_file = template_dir / "template.json"
 
     if not metadata_file.exists():
@@ -141,70 +142,18 @@ def get_template_metadata(template_dir: Path) -> Optional[SevdoTemplateMetadata]
 
         if "name" not in data:
             data["name"] = template_dir.name.replace("_", " ").title()
-
         if "version" not in data:
             data["version"] = "1.0.0"
-
         if "author" not in data:
             data["author"] = "Unknown Author"
-
         if "category" not in data:
             data["category"] = "general"
 
         return SevdoTemplateMetadata(**data)
 
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        logger.error(f"Error reading metadata file {metadata_file}: {e}")
-        return None
     except Exception as e:
         logger.error(f"Error parsing template metadata {metadata_file}: {e}")
         return None
-
-
-def determine_featured_status(
-    template_id: str, metadata: SevdoTemplateMetadata
-) -> bool:
-    """Determine if template should be featured based on category and features"""
-    featured_categories = [
-        "fitness",
-        "real_estate",
-        "ecommerce",
-        "restaurant",
-        "business",
-    ]
-
-    if metadata.category in featured_categories:
-        return True
-
-    if metadata.features and len(metadata.features) > 8:
-        return True
-
-    return False
-
-
-def calculate_template_rating(metadata: SevdoTemplateMetadata) -> float:
-    """Calculate template rating based on features and complexity"""
-    base_rating = 4.5
-
-    if metadata.features:
-        feature_bonus = min(len(metadata.features) * 0.05, 0.5)
-        base_rating += feature_bonus
-
-    if metadata.structure:
-        if metadata.structure.backend and metadata.structure.frontend:
-            base_rating += 0.2
-
-    category_bonuses = {
-        "fitness": 0.1,
-        "real_estate": 0.2,
-        "restaurant": 0.1,
-        "ecommerce": 0.2,
-        "business": 0.1,
-    }
-
-    base_rating += category_bonuses.get(metadata.category, 0)
-
-    return min(base_rating, 5.0)
 
 
 def convert_to_output_schema(
@@ -219,10 +168,11 @@ def convert_to_output_schema(
         category=metadata.category,
         author=metadata.author,
         tags=metadata.tags,
-        is_featured=determine_featured_status(template_id, metadata),
+        is_featured=metadata.category
+        in ["fitness", "real_estate", "ecommerce", "restaurant", "business"],
         is_public=True,
         usage_count=0,
-        rating=calculate_template_rating(metadata),
+        rating=min(4.5 + len(metadata.features or []) * 0.05, 5.0),
         structure=metadata.structure,
         required_prefabs=metadata.required_prefabs or [],
         customization=metadata.customization or {},
@@ -231,6 +181,98 @@ def convert_to_output_schema(
         created_at="2024-01-01T00:00:00Z",
         updated_at=datetime.now().isoformat() + "Z",
     )
+
+
+def start_react_server(frontend_path: Path, generation_id: str) -> int:
+    """Start a React development server and return the port"""
+
+    # Find available port
+    for port in range(3000, 3100):
+        try:
+            response = requests.get(f"http://localhost:{port}", timeout=1)
+        except requests.exceptions.ConnectionError:
+            # Port is available
+            break
+    else:
+        raise Exception("No available ports")
+
+    # Check if server already running for this generation
+    if generation_id in active_react_servers:
+        existing_port = active_react_servers[generation_id]["port"]
+        try:
+            response = requests.get(f"http://localhost:{existing_port}", timeout=2)
+            if response.status_code == 200:
+                logger.info(f"React server already running on port {existing_port}")
+                return existing_port
+        except:
+            # Server died, remove from tracking
+            del active_react_servers[generation_id]
+
+    def run_server():
+        try:
+            logger.info(f"Installing npm dependencies for {generation_id}")
+
+            # Install dependencies
+            install_process = subprocess.run(
+                ["npm", "install"],
+                cwd=frontend_path,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            if install_process.returncode != 0:
+                logger.error(f"npm install failed: {install_process.stderr}")
+                return
+
+            logger.info(f"Starting React server on port {port}")
+
+            # Start React dev server
+            env = os.environ.copy()
+            env.update(
+                {"PORT": str(port), "BROWSER": "none", "CHOKIDAR_USEPOLLING": "true"}
+            )
+
+            process = subprocess.Popen(
+                ["npm", "start"],
+                cwd=frontend_path,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            # Store process info
+            active_react_servers[generation_id] = {
+                "process": process,
+                "port": port,
+                "started_at": time.time(),
+            }
+
+            # Wait for process to complete
+            process.wait()
+
+        except Exception as e:
+            logger.error(f"Failed to start React server: {e}")
+        finally:
+            # Clean up when server stops
+            if generation_id in active_react_servers:
+                del active_react_servers[generation_id]
+
+    # Start server in background thread
+    thread = threading.Thread(target=run_server, daemon=True)
+    thread.start()
+
+    # Wait for server to be ready (up to 60 seconds)
+    for i in range(90):
+        try:
+            response = requests.get(f"http://localhost:{port}", timeout=2)
+            if response.status_code == 200:
+                logger.info(f"React server ready on port {port}")
+                return port
+        except:
+            time.sleep(2)
+
+    raise Exception(f"React server failed to start within 60 seconds")
 
 
 # =============================================================================
@@ -248,10 +290,7 @@ async def list_templates(
     """List available SEVDO project templates"""
     templates = []
 
-    logger.info(f"Listing templates from: {TEMPLATES_DIR}")
-
     if not TEMPLATES_DIR.exists():
-        logger.error(f"Templates directory not found: {TEMPLATES_DIR}")
         return []
 
     for template_dir in TEMPLATES_DIR.iterdir():
@@ -259,9 +298,6 @@ async def list_templates(
             try:
                 metadata = get_template_metadata(template_dir)
                 if metadata is None:
-                    logger.warning(
-                        f"Skipping template {template_dir.name}: no valid metadata"
-                    )
                     continue
 
                 template_output = convert_to_output_schema(template_dir.name, metadata)
@@ -277,241 +313,8 @@ async def list_templates(
                 logger.error(f"Error processing template {template_dir}: {e}")
                 continue
 
-    logger.info(f"Found {len(templates)} valid templates")
-
     templates.sort(key=lambda x: (-int(x.is_featured), -x.rating, x.name))
-
-    start_idx = offset
-    end_idx = offset + limit
-    return templates[start_idx:end_idx]
-
-
-@router.get("/{template_name}/preview")
-async def get_template_preview(template_name: str):
-    """Get template preview with SEVDO metadata and file contents"""
-    template_path = TEMPLATES_DIR / template_name
-
-    if not template_path.exists() or not template_path.is_dir():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template '{template_name}' not found",
-        )
-
-    try:
-        logger.info(f"Loading preview for template: {template_name}")
-
-        metadata = get_template_metadata(template_path)
-        if metadata is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Template metadata is invalid",
-            )
-
-        preview_data = {
-            "template_name": template_name,
-            "metadata": metadata.dict(),
-            "frontend": "",
-            "backend": "",
-            "files": {},
-            "structure": [],
-            "frontend_files": [],
-            "backend_files": [],
-        }
-
-        if metadata.structure:
-            if metadata.structure.frontend:
-                preview_data["frontend_files"] = metadata.structure.frontend.files
-            if metadata.structure.backend:
-                preview_data["backend_files"] = metadata.structure.backend.files
-
-        for file_path in template_path.rglob("*"):
-            if file_path.is_file():
-                relative_path = file_path.relative_to(template_path)
-                preview_data["structure"].append(str(relative_path))
-
-                if file_path.suffix.lower() in [
-                    ".png",
-                    ".jpg",
-                    ".jpeg",
-                    ".gif",
-                    ".ico",
-                    ".pdf",
-                    ".zip",
-                ]:
-                    continue
-
-                if file_path.stat().st_size > 1024 * 1024:
-                    continue
-
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                        preview_data["files"][str(relative_path)] = content
-
-                        filename = file_path.name.lower()
-                        relative_str = str(relative_path).lower()
-
-                        if (
-                            filename.endswith(".s")
-                            or relative_str.startswith("frontend/")
-                            or filename in preview_data["frontend_files"]
-                        ):
-                            if not preview_data["frontend"]:
-                                preview_data["frontend"] = (
-                                    f"// SEVDO Frontend File: {relative_path}\n{content}"
-                                )
-
-                        elif (
-                            filename.endswith(".py")
-                            or relative_str.startswith("backend/")
-                            or filename in preview_data["backend_files"]
-                        ):
-                            if not preview_data["backend"]:
-                                preview_data["backend"] = (
-                                    f"# SEVDO Backend File: {relative_path}\n{content}"
-                                )
-
-                except UnicodeDecodeError:
-                    logger.debug(f"Skipping binary file: {relative_path}")
-                    continue
-                except Exception as file_error:
-                    logger.error(f"Error reading file {relative_path}: {file_error}")
-                    continue
-
-        preview_data.update(
-            {
-                "file_count": len(preview_data["files"]),
-                "has_frontend": bool(preview_data["frontend"]),
-                "has_backend": bool(preview_data["backend"]),
-                "template_type": metadata.category,
-                "version": metadata.version,
-                "author": metadata.author,
-                "feature_count": len(metadata.features) if metadata.features else 0,
-                "prefab_count": len(metadata.required_prefabs)
-                if metadata.required_prefabs
-                else 0,
-            }
-        )
-
-        logger.info(
-            f"Preview loaded for template {template_name}: "
-            f"{preview_data['file_count']} files, "
-            f"frontend: {preview_data['has_frontend']}, "
-            f"backend: {preview_data['has_backend']}, "
-            f"features: {preview_data['feature_count']}"
-        )
-
-        return preview_data
-
-    except Exception as e:
-        logger.error(f"Error loading template preview for {template_name}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to load template preview: {str(e)}",
-        )
-
-
-@router.get("/{template_name}/files/{file_path:path}")
-async def get_template_file(template_name: str, file_path: str):
-    """Get a specific file from a template"""
-    template_path = TEMPLATES_DIR / template_name
-    file_full_path = template_path / file_path
-
-    if not template_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template '{template_name}' not found",
-        )
-
-    if not file_full_path.exists() or not file_full_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File '{file_path}' not found in template '{template_name}'",
-        )
-
-    try:
-        file_full_path.resolve().relative_to(template_path.resolve())
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: file outside template directory",
-        )
-
-    try:
-        with open(file_full_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        return {
-            "template_name": template_name,
-            "file_path": file_path,
-            "content": content,
-            "size": len(content),
-            "extension": file_full_path.suffix,
-        }
-    except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="File is not a text file"
-        )
-    except Exception as e:
-        logger.error(
-            f"Error reading file {file_path} from template {template_name}: {e}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to read file: {str(e)}",
-        )
-
-
-@router.post("/{template_name}/use", response_model=ProjectOutSchema)
-async def use_template(
-    template_name: str,
-    template_use: TemplateUseSchema,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
-):
-    """Create project from SEVDO template"""
-    template_path = TEMPLATES_DIR / template_name
-
-    if not template_path.exists() or not template_path.is_dir():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template '{template_name}' not found",
-        )
-
-    metadata = get_template_metadata(template_path)
-    if metadata is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Template metadata is invalid",
-        )
-
-    new_project = Project(
-        name=template_use.project_name,
-        description=template_use.project_description or metadata.description,
-        project_type=ProjectType.WEB_APP,
-        tokens=metadata.required_prefabs or [],
-        config={
-            "template_source": template_name,
-            "template_version": metadata.version,
-            "template_author": metadata.author,
-            "customization": metadata.customization,
-            **template_use.customize_config,
-        }
-        if template_use.customize_config
-        else {
-            "template_source": template_name,
-            "template_version": metadata.version,
-            "template_author": metadata.author,
-            "customization": metadata.customization,
-        },
-        user_id=current_user.id,
-    )
-
-    db.add(new_project)
-    db.commit()
-    db.refresh(new_project)
-
-    return ProjectOutSchema.model_validate(new_project)
+    return templates[offset : offset + limit]
 
 
 @router.post("/{template_name}/generate", response_model=GenerationResult)
@@ -528,7 +331,7 @@ async def generate_custom_template(
     if not template_path.exists() or not template_path.is_dir():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template '{template_name}' not found. Available: {[d.name for d in TEMPLATES_DIR.iterdir() if d.is_dir() and (d / 'template.json').exists()]}",
+            detail=f"Template '{template_name}' not found",
         )
 
     try:
@@ -550,12 +353,9 @@ async def generate_custom_template(
             }
         )
 
-        logger.info(f"🚀 Generating website: {template_name} -> {output_dir}")
-        logger.info(f"Generation ID: {generation_id}")
+        logger.info(f"Generating website: {template_name} -> {output_dir}")
 
         cmd = ["python", "/app/sevdo_integrator.py", template_name, str(output_dir)]
-
-        logger.info(f"Running command: {' '.join(cmd)}")
 
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -570,39 +370,16 @@ async def generate_custom_template(
         if process.returncode != 0:
             error = stderr.decode() if stderr else "Unknown error"
             logger.error(f"Integrator failed: {error}")
-            logger.error(f"Stdout: {stdout.decode() if stdout else 'No stdout'}")
             raise HTTPException(status_code=500, detail=f"Generation failed: {error}")
-
-        logger.info(f"Integrator stdout: {stdout.decode() if stdout else 'No output'}")
 
         if output_dir.exists():
             file_count = len([f for f in output_dir.rglob("*") if f.is_file()])
         else:
-            logger.error(f"Output directory not created: {output_dir}")
-            raise HTTPException(
-                status_code=500,
-                detail="Generation completed but output directory not found",
-            )
-
-        frontend_dir = output_dir / "frontend"
-        backend_dir = output_dir / "backend"
-
-        generation_info = {
-            "has_frontend": frontend_dir.exists(),
-            "has_backend": backend_dir.exists(),
-            "frontend_files": len(list(frontend_dir.rglob("*")))
-            if frontend_dir.exists()
-            else 0,
-            "backend_files": len(list(backend_dir.rglob("*")))
-            if backend_dir.exists()
-            else 0,
-        }
-
-        logger.info(f"Generation info: {generation_info}")
+            raise HTTPException(status_code=500, detail="Output directory not created")
 
         new_project = Project(
             name=request.project_name,
-            description=f"Generated from {template_name} template using SEVDO integrator",
+            description=f"Generated from {template_name} template",
             project_type=ProjectType.WEB_APP,
             user_id=current_user.id,
             config={
@@ -610,21 +387,14 @@ async def generate_custom_template(
                 "generation_id": generation_id,
                 "customizations": request.customizations,
                 "generated_at": datetime.now().isoformat(),
-                "generation_source": "sevdo_integrator",
                 "output_directory": str(output_dir),
                 "file_count": file_count,
-                "has_frontend": generation_info["has_frontend"],
-                "has_backend": generation_info["has_backend"],
             },
         )
 
         db.add(new_project)
         db.commit()
         db.refresh(new_project)
-
-        logger.info(
-            f"✅ Successfully generated {template_name} for {current_user.email}: {file_count} files"
-        )
 
         return GenerationResult(
             success=True,
@@ -641,103 +411,240 @@ async def generate_custom_template(
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 
-@router.get("/{template_name}/download")
-async def download_template(template_name: str):
-    """Download SEVDO template as a ZIP file"""
-    logger.info(f"Download request for template: {template_name}")
+@router.get("/{template_name}/live/{generation_id}")
+async def serve_live_website(template_name: str, generation_id: str):
+    """Serve preview of generated website"""
 
-    template_path = TEMPLATES_DIR / template_name
+    generated_dir = Path("/app/generated_websites")
+    website_dir = None
 
-    if not template_path.exists() or not template_path.is_dir():
+    # Look for directory containing both template_name and generation_id
+    for dir_path in generated_dir.iterdir():
+        if (
+            dir_path.is_dir()
+            and template_name in dir_path.name
+            and generation_id in dir_path.name
+        ):
+            website_dir = dir_path
+            break
+
+    if not website_dir:
+        # Debug: show what directories we found
+        available_dirs = [d.name for d in generated_dir.iterdir() if d.is_dir()]
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template '{template_name}' not found",
+            status_code=404,
+            detail=f"Website not found. Looking for: {template_name} + {generation_id}. Available: {available_dirs}",
         )
 
-    EXCLUDE_PATTERNS = {
-        "__pycache__",
-        ".git",
-        ".vscode",
-        ".pytest_cache",
-        "venv",
-        "env",
-        ".env",
-        "node_modules",
-        ".next",
-        "dist",
-        "build",
-        "coverage",
-        ".coverage",
-        ".DS_Store",
-        "Thumbs.db",
-    }
+    frontend_dir = website_dir / "frontend" / "public"
+    index_file = frontend_dir / "index.html"
 
-    def should_exclude(file_path: Path) -> bool:
-        """Check if file should be excluded from download"""
-        path_parts = file_path.parts
+    if index_file.exists():
+        with open(index_file, "r", encoding="utf-8") as f:
+            html_content = f.read()
+        return HTMLResponse(content=html_content)
+    else:
+        raise HTTPException(
+            status_code=404, detail=f"index.html not found in {frontend_dir}"
+        )
 
-        for part in path_parts:
-            if part in EXCLUDE_PATTERNS:
-                return True
-            if part.endswith((".log", ".cache", ".tmp")):
-                return True
 
+def start_production_server(frontend_path: Path, generation_id: str) -> int:
+    """Start a production Express server for the built React app"""
+
+    # Find available port
+    for port in range(3000, 3100):
         try:
-            if file_path.stat().st_size > 10 * 1024 * 1024:
-                logger.warning(
-                    f"Excluding large file: {file_path} ({file_path.stat().st_size} bytes)"
-                )
-                return True
+            response = requests.get(f"http://localhost:{port}", timeout=1)
+        except requests.exceptions.ConnectionError:
+            break
+    else:
+        raise Exception("No available ports")
+
+    # Check if server already running
+    if generation_id in active_react_servers:
+        existing_port = active_react_servers[generation_id]["port"]
+        try:
+            response = requests.get(f"http://localhost:{existing_port}", timeout=2)
+            if response.status_code == 200:
+                return existing_port
         except:
-            pass
+            del active_react_servers[generation_id]
 
-        return False
-
-    try:
-        temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
-
-        with zipfile.ZipFile(temp_zip.name, "w", zipfile.ZIP_DEFLATED) as zipf:
-            file_count = 0
-            excluded_count = 0
-
-            for file_path in template_path.rglob("*"):
-                if file_path.is_file():
-                    if should_exclude(file_path):
-                        excluded_count += 1
-                        continue
-
-                    arc_name = file_path.relative_to(template_path)
-                    zipf.write(file_path, arc_name)
-                    file_count += 1
-
+    def run_server():
+        try:
             logger.info(
-                f"Created ZIP with {file_count} files, excluded {excluded_count} files"
+                f"Starting production server for {generation_id} on port {port}"
             )
 
-        def iter_file():
-            try:
-                with open(temp_zip.name, "rb") as file:
-                    while chunk := file.read(8192):
-                        yield chunk
-            finally:
-                try:
-                    os.unlink(temp_zip.name)
-                except:
-                    pass
+            # Install express if needed
+            subprocess.run(
+                ["npm", "install"], cwd=frontend_path, capture_output=True, timeout=60
+            )
 
-        return StreamingResponse(
-            iter_file(),
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": f'attachment; filename="{template_name}-sevdo-template.zip"'
-            },
-        )
+            # Start production server
+            env = os.environ.copy()
+            env["PORT"] = str(port)
+
+            process = subprocess.Popen(
+                ["npm", "run", "serve"],
+                cwd=frontend_path,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            active_react_servers[generation_id] = {
+                "process": process,
+                "port": port,
+                "started_at": time.time(),
+                "type": "production",
+            }
+
+            process.wait()
+
+        except Exception as e:
+            logger.error(f"Production server failed: {e}")
+        finally:
+            if generation_id in active_react_servers:
+                del active_react_servers[generation_id]
+
+    thread = threading.Thread(target=run_server, daemon=True)
+    thread.start()
+
+    # Wait for server (production servers start faster)
+    for i in range(30):  # 30 seconds max
+        try:
+            response = requests.get(f"http://localhost:{port}", timeout=2)
+            if response.status_code == 200:
+                logger.info(f"Production server ready on port {port}")
+                return port
+        except:
+            time.sleep(1)
+
+    raise Exception("Production server failed to start")
+
+
+async def serve_static_build(build_dir: Path):
+    """Serve static build files directly if server fails"""
+    index_file = build_dir / "index.html"
+
+    if not index_file.exists():
+        raise HTTPException(status_code=404, detail="Built React app not found")
+
+    try:
+        with open(index_file, "r", encoding="utf-8") as f:
+            html_content = f.read()
+
+        # Add base href for proper asset loading
+        if "<head>" in html_content:
+            base_href = f'<base href="/api/v1/templates/static/{build_dir.parent.parent.name}/">'
+            html_content = html_content.replace("<head>", f"<head>\n{base_href}")
+
+        return HTMLResponse(content=html_content)
 
     except Exception as e:
-        logger.error(f"Error creating ZIP for template {template_name}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create template download: {str(e)}",
+            status_code=500, detail=f"Failed to serve static app: {str(e)}"
+        )
+
+
+# Add endpoint to serve static assets from build directory
+@router.get("/static/{generation_path}/{file_path:path}")
+async def serve_static_assets(generation_path: str, file_path: str):
+    """Serve static assets from built React app"""
+
+    generated_dir = Path("/app/generated_websites")
+    website_dir = generated_dir / generation_path
+    asset_path = website_dir / "frontend" / "build" / file_path
+
+    if not asset_path.exists():
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    # Determine media type
+    media_type = "application/octet-stream"
+    suffix = asset_path.suffix.lower()
+    media_types = {
+        ".html": "text/html",
+        ".css": "text/css",
+        ".js": "application/javascript",
+        ".json": "application/json",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+    }
+    media_type = media_types.get(suffix, media_type)
+
+    return FileResponse(path=asset_path, media_type=media_type)
+
+
+@router.get("/{template_name}/live-status/{generation_id}")
+async def get_live_website_status(template_name: str, generation_id: str):
+    """Check if a React development server is running for this generation"""
+
+    if generation_id in active_react_servers:
+        server_info = active_react_servers[generation_id]
+        port = server_info["port"]
+
+        # Check if server is actually responding
+        try:
+            response = requests.get(f"http://localhost:{port}", timeout=5)
+            if response.status_code == 200:
+                return {
+                    "available": True,
+                    "status": "running",
+                    "port": port,
+                    "url": f"http://localhost:{port}",
+                    "generation_id": generation_id,
+                    "template_name": template_name,
+                    "uptime_seconds": int(time.time() - server_info["started_at"]),
+                }
+        except:
+            # Server not responding, remove from tracking
+            del active_react_servers[generation_id]
+
+    return {
+        "available": False,
+        "status": "stopped",
+        "generation_id": generation_id,
+        "template_name": template_name,
+        "reason": "React development server not running",
+    }
+
+
+@router.delete("/{template_name}/stop-live/{generation_id}")
+async def stop_live_website(template_name: str, generation_id: str):
+    """Stop the React development server for a generation"""
+
+    if generation_id not in active_react_servers:
+        raise HTTPException(
+            status_code=404, detail="No running server found for this generation"
+        )
+
+    try:
+        server_info = active_react_servers[generation_id]
+        process = server_info["process"]
+
+        # Terminate the process
+        process.terminate()
+
+        # Wait for it to stop
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+
+        # Remove from tracking
+        del active_react_servers[generation_id]
+
+        return {"message": f"React server stopped for generation {generation_id}"}
+
+    except Exception as e:
+        logger.error(f"Error stopping React server: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to stop React server: {str(e)}"
         )
 
 
@@ -748,10 +655,7 @@ async def download_generated_template(template_name: str):
     generated_dir = Path("/app/generated_websites")
 
     if not generated_dir.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="No generated websites found. Generate a template first.",
-        )
+        raise HTTPException(status_code=404, detail="No generated websites found")
 
     matching_dirs = [
         d for d in generated_dir.iterdir() if d.is_dir() and template_name in d.name
@@ -759,8 +663,7 @@ async def download_generated_template(template_name: str):
 
     if not matching_dirs:
         raise HTTPException(
-            status_code=404,
-            detail=f"No generated version of {template_name} found. Generate it first.",
+            status_code=404, detail=f"No generated version of {template_name} found"
         )
 
     latest_dir = sorted(matching_dirs, key=lambda x: x.stat().st_mtime)[-1]
@@ -770,28 +673,14 @@ async def download_generated_template(template_name: str):
             "__pycache__",
             ".git",
             ".vscode",
-            ".pytest_cache",
-            "venv",
-            "env",
-            ".env",
             "node_modules",
             ".next",
             "dist",
             "build",
-            "coverage",
-            ".coverage",
-            ".DS_Store",
-            "Thumbs.db",
         }
 
         def should_exclude(file_path: Path) -> bool:
-            path_parts = file_path.parts
-            for part in path_parts:
-                if part in EXCLUDE_PATTERNS:
-                    return True
-                if part.endswith((".log", ".cache", ".tmp")):
-                    return True
-            return False
+            return any(part in EXCLUDE_PATTERNS for part in file_path.parts)
 
         temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
 
@@ -802,8 +691,6 @@ async def download_generated_template(template_name: str):
                     arc_name = file_path.relative_to(latest_dir)
                     zipf.write(file_path, arc_name)
                     file_count += 1
-
-            logger.info(f"Created ZIP with {file_count} files from {latest_dir}")
 
         def iter_file():
             try:
@@ -829,718 +716,16 @@ async def download_generated_template(template_name: str):
         raise HTTPException(status_code=500, detail="Download failed")
 
 
-@router.get("/{template_name}/live/{generation_id}")
-async def serve_live_website(template_name: str, generation_id: str):
-    """Serve the generated website live in browser"""
-
-    generated_dir = Path("/app/generated_websites")
-    website_dir = None
-
-    for dir_path in generated_dir.iterdir():
-        if (
-            dir_path.is_dir()
-            and generation_id in dir_path.name
-            and template_name in dir_path.name
-        ):
-            website_dir = dir_path
-            break
-
-    if not website_dir:
-        logger.error(f"Generated website not found: {template_name}/{generation_id}")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Generated website not found. Generation ID: {generation_id}",
-        )
-
-    frontend_dir = website_dir / "frontend"
-    index_file = frontend_dir / "public" / "index.html"
-
-    if not index_file.exists():
-        alt_index = frontend_dir / "index.html"
-        if alt_index.exists():
-            index_file = alt_index
-        else:
-            logger.error(f"Frontend index.html not found in {website_dir}")
-            raise HTTPException(
-                status_code=404,
-                detail="Website frontend not found. The generated website may be incomplete.",
-            )
-
-    try:
-        with open(index_file, "r", encoding="utf-8") as f:
-            html_content = f.read()
-
-        base_url = f"/api/v1/templates/{template_name}/live/{generation_id}/assets"
-
-        if "<head>" in html_content:
-            html_content = html_content.replace(
-                "<head>", f'<head>\n    <base href="{base_url}/">'
-            )
-
-        preview_banner = (
-            """
-        <div style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); color: white; padding: 8px; text-align: center; font-size: 14px; z-index: 10000; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            🌐 Live Preview Mode - Generated with SEVDO | 
-            <span style="opacity: 0.8;">Template: """
-            + template_name
-            + """</span>
-        </div>
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                document.body.style.marginTop = '40px';
-            });
-        </script>
-        """
-        )
-
-        if "</head>" in html_content:
-            html_content = html_content.replace("</head>", preview_banner + "</head>")
-
-        logger.info(f"Serving live website: {template_name}/{generation_id}")
-        return HTMLResponse(content=html_content)
-
-    except Exception as e:
-        logger.error(f"Error serving live website {template_name}/{generation_id}: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to serve live website: {str(e)}"
-        )
-
-
-@router.get("/{template_name}/live/{generation_id}/assets/{file_path:path}")
-async def serve_website_assets(template_name: str, generation_id: str, file_path: str):
-    """Serve CSS, JS, images and other assets for the live website"""
-
-    generated_dir = Path("/app/generated_websites")
-    website_dir = None
-
-    for dir_path in generated_dir.iterdir():
-        if (
-            dir_path.is_dir()
-            and generation_id in dir_path.name
-            and template_name in dir_path.name
-        ):
-            website_dir = dir_path
-            break
-
-    if not website_dir:
-        raise HTTPException(status_code=404, detail="Generated website not found")
-
-    possible_paths = [
-        website_dir / "frontend" / "public" / file_path,
-        website_dir / "frontend" / "src" / file_path,
-        website_dir / "frontend" / file_path,
-        website_dir / file_path,
-    ]
-
-    asset_path = None
-    for path in possible_paths:
-        if path.exists() and path.is_file():
-            asset_path = path
-            break
-
-    if not asset_path:
-        logger.warning(f"Asset not found: {file_path} in {website_dir}")
-        raise HTTPException(status_code=404, detail=f"Asset '{file_path}' not found")
-
-    try:
-        asset_path.resolve().relative_to(website_dir.resolve())
-    except ValueError:
-        logger.warning(
-            f"Security violation: attempt to access {asset_path} outside {website_dir}"
-        )
-        raise HTTPException(
-            status_code=403, detail="Access denied: asset outside website directory"
-        )
-
-    media_type = "application/octet-stream"
-    suffix = asset_path.suffix.lower()
-
-    media_types = {
-        ".html": "text/html",
-        ".css": "text/css",
-        ".js": "application/javascript",
-        ".json": "application/json",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".gif": "image/gif",
-        ".svg": "image/svg+xml",
-        ".ico": "image/x-icon",
-        ".woff": "font/woff",
-        ".woff2": "font/woff2",
-        ".ttf": "font/ttf",
-        ".eot": "application/vnd.ms-fontobject",
-    }
-
-    media_type = media_types.get(suffix, media_type)
-
-    try:
-        logger.debug(f"Serving asset: {file_path} as {media_type}")
-        return FileResponse(
-            path=asset_path, media_type=media_type, filename=asset_path.name
-        )
-
-    except Exception as e:
-        logger.error(f"Error serving asset {file_path}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to serve asset: {str(e)}")
-
-
-@router.get("/{template_name}/live-status/{generation_id}")
-async def get_live_website_status(template_name: str, generation_id: str):
-    """Check if a generated website is available for live preview"""
-
-    generated_dir = Path("/app/generated_websites")
-    website_dir = None
-
-    for dir_path in generated_dir.iterdir():
-        if (
-            dir_path.is_dir()
-            and generation_id in dir_path.name
-            and template_name in dir_path.name
-        ):
-            website_dir = dir_path
-            break
-
-    if not website_dir:
-        return {
-            "available": False,
-            "reason": "Website directory not found",
-            "generation_id": generation_id,
-            "template_name": template_name,
-        }
-
-    frontend_dir = website_dir / "frontend"
-    index_file = frontend_dir / "public" / "index.html"
-
-    if not index_file.exists():
-        index_file = frontend_dir / "index.html"
-
-    analysis = {
-        "available": index_file.exists(),
-        "has_frontend": frontend_dir.exists(),
-        "has_backend": (website_dir / "backend").exists(),
-        "has_index": index_file.exists(),
-        "index_path": str(index_file) if index_file.exists() else None,
-        "file_count": len(list(website_dir.rglob("*"))) if website_dir.exists() else 0,
-        "generation_id": generation_id,
-        "template_name": template_name,
-        "website_path": str(website_dir),
-        "live_url": f"/api/v1/templates/{template_name}/live/{generation_id}"
-        if index_file.exists()
-        else None,
-    }
-
-    if not analysis["available"]:
-        analysis["reason"] = "Frontend index.html not found"
-
-    return analysis
-
-
-@router.get("/generated-status")
-async def get_generated_status():
-    """Get status of generated websites"""
-
-    generated_dir = Path("/app/generated_websites")
-    integrator_path = Path("/app/sevdo_integrator.py")
-
-    generated_websites = []
-    if generated_dir.exists():
-        for website_dir in generated_dir.iterdir():
-            if website_dir.is_dir():
-                file_count = len([f for f in website_dir.rglob("*") if f.is_file()])
-                generated_websites.append(
-                    {
-                        "name": website_dir.name,
-                        "created": datetime.fromtimestamp(
-                            website_dir.stat().st_mtime
-                        ).isoformat(),
-                        "file_count": file_count,
-                        "has_frontend": (website_dir / "frontend").exists(),
-                        "has_backend": (website_dir / "backend").exists(),
-                    }
-                )
-
-    return {
-        "templates_directory": str(TEMPLATES_DIR),
-        "templates_exist": TEMPLATES_DIR.exists(),
-        "integrator_exists": integrator_path.exists(),
-        "sevdo_frontend_exists": Path("/app/sevdo_frontend").exists(),
-        "sevdo_backend_exists": Path("/app/sevdo_backend").exists(),
-        "generated_directory": str(generated_dir),
-        "generated_websites": generated_websites,
-        "total_generated": len(generated_websites),
-        "available_templates": [
-            d.name
-            for d in TEMPLATES_DIR.iterdir()
-            if d.is_dir() and (d / "template.json").exists()
-        ],
-        "status": "ready" if integrator_path.exists() else "integrator_missing",
-    }
-
-
 @router.get("/health")
 async def templates_health_check():
-    """Health check for SEVDO templates system"""
-    template_info = []
-    valid_templates = 0
-
+    """Health check for templates system"""
+    template_count = 0
     if TEMPLATES_DIR.exists():
-        for template_dir in TEMPLATES_DIR.iterdir():
-            if template_dir.is_dir():
-                metadata = get_template_metadata(template_dir)
-                files = list(template_dir.glob("*"))
-
-                template_status = {
-                    "name": template_dir.name,
-                    "has_metadata": metadata is not None,
-                    "file_count": len(files),
-                    "files": [f.name for f in files[:5]],
-                }
-
-                if metadata:
-                    valid_templates += 1
-                    template_status.update(
-                        {
-                            "template_name": metadata.name,
-                            "category": metadata.category,
-                            "version": metadata.version,
-                            "author": metadata.author,
-                            "feature_count": len(metadata.features)
-                            if metadata.features
-                            else 0,
-                            "prefab_count": len(metadata.required_prefabs)
-                            if metadata.required_prefabs
-                            else 0,
-                        }
-                    )
-
-                template_info.append(template_status)
+        template_count = len([d for d in TEMPLATES_DIR.iterdir() if d.is_dir()])
 
     return {
-        "status": "healthy" if valid_templates > 0 else "warning",
+        "status": "healthy",
         "templates_directory": str(TEMPLATES_DIR),
-        "directory_exists": TEMPLATES_DIR.exists(),
-        "total_directories": len(template_info),
-        "valid_templates": valid_templates,
-        "template_details": template_info,
-        "sevdo_format": "SEVDO template format with structure, prefabs, and customization",
+        "template_count": template_count,
+        "active_react_servers": len(active_react_servers),
     }
-
-
-@router.get("/{template_name}", response_model=TemplateOutSchema)
-async def get_template(template_name: str):
-    """Get a single SEVDO template by name"""
-    template_path = TEMPLATES_DIR / template_name
-
-    if not template_path.exists() or not template_path.is_dir():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template '{template_name}' not found",
-        )
-
-    try:
-        metadata = get_template_metadata(template_path)
-        if metadata is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Template metadata is invalid",
-            )
-
-        return convert_to_output_schema(template_name, metadata)
-
-    except Exception as e:
-        logger.error(f"Error loading template {template_name}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to load template: {str(e)}",
-        )
-
-
-@router.get("/{template_name}/live-preview")
-async def get_template_live_preview(template_name: str):
-    """Serve the live preview of a SEVDO template"""
-    template_path = TEMPLATES_DIR / template_name
-
-    if not template_path.exists() or not template_path.is_dir():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template '{template_name}' not found",
-        )
-
-    metadata = get_template_metadata(template_path)
-    if metadata is None:
-        return HTMLResponse(
-            content=create_error_page(template_name, "Invalid template metadata"),
-            status_code=500,
-        )
-
-    try:
-        sevdo_files = list(template_path.glob("frontend/*.s"))
-
-        if not sevdo_files:
-            sevdo_files = list(template_path.glob("*.s"))
-
-        home_file = None
-        for file_path in sevdo_files:
-            filename = file_path.stem.lower()
-            if filename in ["home", "hem", "index", "main"]:
-                home_file = file_path
-                break
-
-        if not home_file and sevdo_files:
-            home_file = sevdo_files[0]
-
-        if home_file:
-            with open(home_file, "r", encoding="utf-8") as f:
-                sevdo_content = f.read()
-
-            html_content = create_sevdo_preview_html(
-                template_name, metadata, sevdo_content, sevdo_files
-            )
-            return HTMLResponse(content=html_content)
-        else:
-            return HTMLResponse(
-                content=create_template_info_page(template_name, metadata)
-            )
-
-    except Exception as e:
-        logger.error(f"Error serving live preview for {template_name}: {e}")
-        return HTMLResponse(
-            content=create_error_page(template_name, str(e)), status_code=500
-        )
-
-
-@router.get("/{template_name}/assets/{file_path:path}")
-async def get_template_asset(template_name: str, file_path: str):
-    """Get static assets (CSS, JS, images) for template live preview"""
-    template_path = TEMPLATES_DIR / template_name
-    asset_path = template_path / file_path
-
-    if not template_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template '{template_name}' not found",
-        )
-
-    if not asset_path.exists() or not asset_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Asset '{file_path}' not found in template '{template_name}'",
-        )
-
-    try:
-        asset_path.resolve().relative_to(template_path.resolve())
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: asset outside template directory",
-        )
-
-    media_type = "application/octet-stream"
-    if asset_path.suffix == ".css":
-        media_type = "text/css"
-    elif asset_path.suffix == ".js":
-        media_type = "application/javascript"
-    elif asset_path.suffix in [".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg"]:
-        media_type = f"image/{asset_path.suffix[1:]}"
-
-    try:
-        return FileResponse(asset_path, media_type=media_type)
-    except Exception as e:
-        logger.error(
-            f"Error serving asset {file_path} from template {template_name}: {e}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to serve asset: {str(e)}",
-        )
-
-
-# =============================================================================
-# PREVIEW HTML GENERATION FUNCTIONS
-# =============================================================================
-
-
-def create_sevdo_preview_html(
-    template_name: str,
-    metadata: SevdoTemplateMetadata,
-    sevdo_content: str,
-    all_files: list,
-) -> str:
-    """Create HTML preview from SEVDO content"""
-
-    nav_items = extract_navigation(sevdo_content)
-    page_sections = parse_sevdo_content(sevdo_content)
-
-    page_links = ""
-    for file_path in all_files:
-        page_name = file_path.stem
-        page_links += (
-            f'<a href="#{page_name.lower()}" class="page-link">{page_name}</a> '
-        )
-
-    html_template = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{metadata.name} - Live Preview</title>
-        <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{ 
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                line-height: 1.6; color: #333; background: #f8fafc;
-            }}
-            .preview-header {{
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white; padding: 1rem; text-align: center;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }}
-            .preview-header h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
-            .preview-header p {{ opacity: 0.9; font-size: 0.9rem; }}
-            .preview-nav {{
-                background: white; padding: 1rem; border-bottom: 1px solid #e5e7eb;
-                text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            }}
-            .page-link {{
-                display: inline-block; margin: 0 0.5rem; padding: 0.5rem 1rem;
-                background: #f3f4f6; color: #374151; text-decoration: none;
-                border-radius: 6px; transition: all 0.2s;
-            }}
-            .page-link:hover {{ background: #e5e7eb; }}
-            .page-link.active {{ background: #3b82f6; color: white; }}
-            .content {{ max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }}
-            .section {{ 
-                background: white; margin-bottom: 2rem; padding: 2rem; 
-                border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            }}
-            .section h2 {{ 
-                color: #1f2937; margin-bottom: 1rem; font-size: 1.5rem;
-                border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem;
-            }}
-            .section p {{ margin-bottom: 1rem; color: #6b7280; }}
-            .hero {{ 
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white; text-align: center; padding: 4rem 2rem;
-                border-radius: 12px; margin-bottom: 2rem;
-            }}
-            .hero h1 {{ font-size: 2.5rem; margin-bottom: 1rem; }}
-            .hero p {{ font-size: 1.1rem; opacity: 0.9; margin-bottom: 2rem; }}
-            .btn {{
-                display: inline-block; padding: 0.75rem 1.5rem; 
-                background: #3b82f6; color: white; text-decoration: none;
-                border-radius: 6px; transition: all 0.2s;
-            }}
-            .btn:hover {{ background: #2563eb; transform: translateY(-1px); }}
-            .template-info {{
-                background: #eff6ff; border: 1px solid #bfdbfe; padding: 1rem;
-                border-radius: 8px; margin-bottom: 2rem;
-            }}
-            .template-info h3 {{ color: #1e40af; margin-bottom: 0.5rem; }}
-            .template-info p {{ color: #1e3a8a; font-size: 0.9rem; }}
-            @media (max-width: 768px) {{
-                .hero {{ padding: 2rem 1rem; }}
-                .hero h1 {{ font-size: 1.8rem; }}
-                .content {{ padding: 0 0.5rem; }}
-                .section {{ padding: 1.5rem; }}
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="preview-header">
-            <h1>{metadata.name}</h1>
-            <p>SEVDO Template Live Preview Version {metadata.version} by {metadata.author}</p>
-        </div>
-        
-        <div class="preview-nav">
-            <div class="template-info">
-                <h3>Template: {template_name}</h3>
-                <p>Category: {metadata.category} • {len(metadata.features or [])} features • {len(metadata.required_prefabs or [])} components</p>
-            </div>
-            <div>Available Pages: {page_links}</div>
-        </div>
-        
-        <div class="content">
-            {page_sections}
-        </div>
-        
-        <script>
-            document.querySelectorAll('.page-link').forEach(link => {{
-                link.addEventListener('click', (e) => {{
-                    e.preventDefault();
-                    document.querySelectorAll('.page-link').forEach(l => l.classList.remove('active'));
-                    e.target.classList.add('active');
-                    console.log('Navigating to:', e.target.textContent);
-                }});
-            }});
-            
-            document.querySelector('.page-link')?.classList.add('active');
-        </script>
-    </body>
-    </html>
-    """
-
-    return html_template
-
-
-def extract_navigation(sevdo_content: str) -> list:
-    """Extract navigation items from SEVDO content"""
-    lines = sevdo_content.split("\n")
-    for line in lines:
-        if line.strip().startswith("mn("):
-            nav_content = line.strip()[3:-1]
-            return [item.strip() for item in nav_content.split(",")]
-    return []
-
-
-def parse_sevdo_content(sevdo_content: str) -> str:
-    """Parse SEVDO content and convert to functional HTML sections"""
-    lines = sevdo_content.split("\n")
-    sections = []
-    current_section = ""
-
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("mn("):
-            continue
-
-        if line.startswith("ho("):
-            content = line[3:-1]
-            parts = content.split(",")
-            if len(parts) >= 3:
-                title = parts[0].replace("h(", "").replace(")", "")
-                desc = parts[1].replace("t(", "").replace(")", "")
-                btn_text = parts[2].replace("b(", "").replace(")", "")
-
-                sections.append(f"""
-                <div class="hero">
-                    <h1>{title}</h1>
-                    <p>{desc}</p>
-                    <a href="#" class="btn btn-primary" onclick="alert('This is a preview!')">{btn_text}</a>
-                </div>
-                """)
-
-        elif line.startswith("h("):
-            if current_section:
-                current_section += "</div>"
-                sections.append(current_section)
-            title = line[2:-1]
-            current_section = f'<div class="section"><h2>{title}</h2>'
-
-        elif line.startswith("t("):
-            text = line[2:-1]
-            if current_section:
-                current_section += f"<p>{text}</p>"
-
-        elif line.startswith("cf("):
-            if current_section:
-                current_section += """
-                <div class="contact-form">
-                    <form onsubmit="alert('Form submitted in preview mode!'); return false;">
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem;">Name</label>
-                            <input type="text" name="name" required style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
-                        </div>
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem;">Email</label>
-                            <input type="email" name="email" required style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
-                        </div>
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem;">Message</label>
-                            <textarea name="message" required style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; height: 100px;"></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Send Message</button>
-                    </form>
-                </div>
-                """
-
-    if current_section:
-        current_section += "</div>"
-        sections.append(current_section)
-
-    return "\n".join(sections)
-
-
-def create_template_info_page(
-    template_name: str, metadata: SevdoTemplateMetadata
-) -> str:
-    """Create a template information page when no preview is available"""
-    features_list = ""
-    if metadata.features:
-        features_list = "".join(
-            [f"<li>{feature}</li>" for feature in metadata.features]
-        )
-
-    return f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{metadata.name} - Template Info</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 40px; background: #f8fafc; }}
-            .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-            .header {{ text-align: center; margin-bottom: 2rem; padding: 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; }}
-            .info-grid {{ display: grid; gap: 1rem; margin: 2rem 0; }}
-            .info-item {{ background: #f8fafc; padding: 1rem; border-radius: 6px; border-left: 4px solid #3b82f6; }}
-            .features {{ columns: 2; gap: 1rem; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>{metadata.name}</h1>
-                <p>{metadata.description}</p>
-                <p><strong>Version:</strong> {metadata.version} • <strong>Category:</strong> {metadata.category}</p>
-            </div>
-            
-            <div class="info-grid">
-                <div class="info-item">
-                    <h3>Author</h3>
-                    <p>{metadata.author}</p>
-                </div>
-                <div class="info-item">
-                    <h3>Template Type</h3>
-                    <p>SEVDO Frontend Template</p>
-                </div>
-            </div>
-            
-            <div class="info-item">
-                <h3>Features ({len(metadata.features or [])})</h3>
-                <ul class="features">{features_list}</ul>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-
-
-def create_error_page(template_name: str, error_message: str) -> str:
-    """Create an error page for failed previews"""
-    return f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Preview Error - {template_name}</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 40px; background: #fef2f2; color: #991b1b; }}
-            .container {{ max-width: 600px; margin: 0 auto; text-align: center; }}
-            .error-box {{ background: white; padding: 2rem; border-radius: 8px; border: 1px solid #fecaca; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="error-box">
-                <h1>Preview Error</h1>
-                <p>Failed to load preview for template: <strong>{template_name}</strong></p>
-                <p><strong>Error:</strong> {error_message}</p>
-                <p>This SEVDO template may require compilation or have missing files.</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """

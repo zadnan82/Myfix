@@ -11,9 +11,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install system dependencies for building
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    inotify-tools \
+    coreutils \
+    git \
+    bash \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get purge -y --auto-remove
 
 # Create application directory
 WORKDIR /app
@@ -49,7 +55,7 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 # Set working directory and create directories as root
 WORKDIR /app
-RUN mkdir -p /app/tasks /app/logs /app/playground/input_files /app/playground/output_files /app/playground/templates
+RUN mkdir -p /app/tasks /app/logs /app/playground/input_files /app/playground/output_files /app/playground/templates /app/generated_websites
 
 # Copy application code
 COPY . .

@@ -216,6 +216,12 @@ class SevdoIntegrator:
             self._generate_react_files(frontend_output, template_name)
 
             print(f"✅ Frontend generated: {len(components)} components")
+
+            if self._build_react_app(frontend_output):
+                print("✅ Frontend generated and built successfully")
+            else:
+                print("⚠️  Frontend generated but build failed")
+
             return True
 
         except Exception as e:
@@ -225,6 +231,10 @@ class SevdoIntegrator:
     def _build_react_app(self, frontend_dir: Path) -> bool:
         """Build the React application for production"""
         print("🔨 Building React application...")
+        build_dir = frontend_dir / "build"
+        if build_dir.exists():
+            print("✅ Build directory already exists, skipping build")
+            return True
 
         try:
             # Check if Node.js is available
@@ -551,6 +561,107 @@ root.render(
 
         html_file = frontend_dir / "public" / "index.html"
         html_file.write_text(index_html, encoding="utf-8")
+
+    def _build_react_app(self, frontend_dir: Path) -> bool:
+        """Build the React application during generation"""
+        print("🔨 Building React application...")
+
+        try:
+            # Check if Node.js is available
+            subprocess.run(["node", "--version"], capture_output=True, check=True)
+            subprocess.run(["npm", "--version"], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print(
+                "❌ Node.js or npm not found. React app will need to be built separately."
+            )
+            return False
+
+        try:
+            # Install dependencies
+            print("📦 Installing npm dependencies...")
+            result = subprocess.run(
+                ["npm", "install"],
+                cwd=frontend_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+            )
+
+            if result.returncode != 0:
+                print(f"❌ npm install failed: {result.stderr}")
+                return False
+
+            print("✅ Dependencies installed")
+
+            # Build for production
+            print("🏗️ Building React app for production...")
+            result = subprocess.run(
+                ["npm", "run", "build"],
+                cwd=frontend_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+            )
+
+            if result.returncode != 0:
+                print(f"❌ npm run build failed: {result.stderr}")
+                return False
+
+            # Check if build directory was created
+            build_dir = frontend_dir / "build"
+            if build_dir.exists():
+                print("✅ React app built successfully")
+
+                # Create a simple server.js for serving the built app
+                server_js_content = """
+    const express = require('express');
+    const path = require('path');
+    const app = express();
+    const port = process.env.PORT || 3000;
+
+    // Serve static files from the build directory
+    app.use(express.static(path.join(__dirname, 'build')));
+
+    // Handle React Router routes
+    app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'build', 'index.html'));
+    });
+
+    app.listen(port, () => {
+    console.log(`React app serving on port ${port}`);
+    });
+    """
+
+                # Add express to package.json dependencies
+                package_json_path = frontend_dir / "package.json"
+                with open(package_json_path, "r") as f:
+                    package_data = json.load(f)
+
+                if "express" not in package_data.get("dependencies", {}):
+                    package_data["dependencies"]["express"] = "^4.18.2"
+
+                # Add serve script
+                package_data["scripts"]["serve"] = "node server.js"
+
+                with open(package_json_path, "w") as f:
+                    json.dump(package_data, f, indent=2)
+
+                # Write server.js
+                server_js_path = frontend_dir / "server.js"
+                server_js_path.write_text(server_js_content)
+
+                print("✅ Production server setup complete")
+                return True
+            else:
+                print("❌ Build directory not found after build")
+                return False
+
+        except subprocess.TimeoutExpired:
+            print("❌ React build timed out")
+            return False
+        except Exception as e:
+            print(f"❌ Unexpected error during React build: {e}")
+            return False
 
     def _generate_requirements(self, backend_dir: Path):
         """Generate requirements.txt for backend"""
