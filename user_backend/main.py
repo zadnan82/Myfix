@@ -36,27 +36,22 @@ except ImportError:
     logger = logging.getLogger(__name__)
 
 
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     # Startup
-#     logger.info("🚀 Starting SEVDO Backend")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting SEVDO Backend")
 
-# # Generate templates in background after 30 seconds
-# async def generate_templates_later():
-#     await asyncio.sleep(30)
-#     try:
-#         from user_backend.app.services import template_generator
+    # Initialize database tables
+    try:
+        init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
 
-#         await template_generator.generate_all_templates()
-#         logger.info("✅ Templates generated")
-#     except Exception as e:
-#         logger.error(f"Template generation failed: {e}")
+    yield
 
-# asyncio.create_task(generate_templates_later())
-# yield
-
-# # Shutdown
-# logger.info("🛑 Shutting down")
+    # Shutdown
+    logger.info("Shutting down")
 
 
 # Create FastAPI application
@@ -68,7 +63,7 @@ app = FastAPI(
     A comprehensive backend service with clean, organized endpoints for all SEVDO platform features.
     """,
     version="2.0.0",
-    # lifespan=lifespan,
+    lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/api/v1/openapi.json",
@@ -394,40 +389,6 @@ except Exception as e:
 # =============================================================================
 # API STATUS ENDPOINTS
 # =============================================================================
-
-
-# # Add this to your startup event
-# @app.on_event("startup")
-# async def startup_generate_templates():
-#     """Generate all templates on application startup"""
-#     logger.info("🚀 Generating templates on startup...")
-
-#     try:
-#         # Run in background to not block startup
-#         asyncio.create_task(template_generator.generate_all_templates())
-#         logger.info("✅ Template generation task started")
-#     except Exception as e:
-#         logger.error(f"❌ Failed to start template generation: {e}")
-
-
-# @app.get("/api/v1/status", tags=["API Info"])
-# async def api_status():
-#     """Get API status and registered endpoints"""
-
-#     return {
-#         "api_version": "v1",
-#         "status": "operational" if core_registered > 0 else "degraded",
-#         "timestamp": datetime.utcnow().isoformat(),
-#         "summary": {
-#             "total_registered": len(registered_routers),
-#             "core_routers": core_registered,
-#             "enhanced_routers": enhanced_registered,
-#             "failed_routers": total_failed,
-#         },
-#         "registered_routers": registered_routers,
-#         "failed_routers": failed_routers if failed_routers else [],
-#         "documentation": {"swagger_ui": "/docs", "redoc": "/redoc"},
-#     }
 
 
 # =============================================================================

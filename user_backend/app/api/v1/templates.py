@@ -413,12 +413,11 @@ async def generate_custom_template(
 
 @router.get("/{template_name}/live/{generation_id}")
 async def serve_live_website(template_name: str, generation_id: str):
-    """Serve preview of generated website"""
+    """Start and serve live React development server"""
 
     generated_dir = Path("/app/generated_websites")
     website_dir = None
 
-    # Look for directory containing both template_name and generation_id
     for dir_path in generated_dir.iterdir():
         if (
             dir_path.is_dir()
@@ -429,24 +428,90 @@ async def serve_live_website(template_name: str, generation_id: str):
             break
 
     if not website_dir:
-        # Debug: show what directories we found
-        available_dirs = [d.name for d in generated_dir.iterdir() if d.is_dir()]
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    frontend_dir = website_dir / "frontend"
+
+    try:
+        # Start React server with longer timeout and better process handling
+        port = await start_react_server_async(frontend_dir, generation_id)
+        live_url = f"http://localhost:{port}"
+        return RedirectResponse(url=live_url, status_code=302)
+
+    except Exception as e:
+        logger.error(f"Failed to start React server: {e}")
         raise HTTPException(
-            status_code=404,
-            detail=f"Website not found. Looking for: {template_name} + {generation_id}. Available: {available_dirs}",
+            status_code=500, detail=f"Could not start live preview: {str(e)}"
         )
 
-    frontend_dir = website_dir / "frontend" / "public"
-    index_file = frontend_dir / "index.html"
 
-    if index_file.exists():
-        with open(index_file, "r", encoding="utf-8") as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
+async def start_react_server_async(frontend_path: Path, generation_id: str) -> int:
+    """Start React server with async process handling"""
+
+    # Check if already running
+    if generation_id in active_react_servers:
+        existing_port = active_react_servers[generation_id]["port"]
+        try:
+            response = requests.get(f"http://localhost:{existing_port}", timeout=2)
+            if response.status_code == 200:
+                return existing_port
+        except:
+            del active_react_servers[generation_id]
+
+    # Find available port
+    for port in range(3000, 3100):
+        try:
+            requests.get(f"http://localhost:{port}", timeout=1)
+        except requests.exceptions.ConnectionError:
+            break
     else:
-        raise HTTPException(
-            status_code=404, detail=f"index.html not found in {frontend_dir}"
-        )
+        raise Exception("No available ports")
+
+    logger.info(f"Starting React server for {generation_id} on port {port}")
+
+    # Install dependencies
+    install_process = await asyncio.create_subprocess_exec(
+        "npm",
+        "install",
+        cwd=frontend_path,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    stdout, stderr = await install_process.communicate()
+    if install_process.returncode != 0:
+        raise Exception(f"npm install failed: {stderr.decode()}")
+
+    # Start React dev server
+    env = os.environ.copy()
+    env.update({"PORT": str(port), "BROWSER": "none"})
+
+    process = await asyncio.create_subprocess_exec(
+        "npm",
+        "start",
+        cwd=frontend_path,
+        env=env,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    active_react_servers[generation_id] = {
+        "process": process,
+        "port": port,
+        "started_at": time.time(),
+    }
+
+    # Wait for server to be ready (with longer timeout)
+    for i in range(120):  # 4 minutes
+        try:
+            response = requests.get(f"http://localhost:{port}", timeout=2)
+            if response.status_code == 200:
+                logger.info(f"React server ready on port {port}")
+                return port
+        except:
+            await asyncio.sleep(2)
+
+    raise Exception("React server failed to start within timeout")
 
 
 def start_production_server(frontend_path: Path, generation_id: str) -> int:

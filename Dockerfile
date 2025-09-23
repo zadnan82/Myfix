@@ -11,15 +11,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install system dependencies for building
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    inotify-tools \
-    coreutils \
-    git \
-    bash \
-    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get purge -y --auto-remove
+    build-essential \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create application directory
 WORKDIR /app
@@ -36,13 +30,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONHASHSEED=random
 
-# Install runtime system dependencies including task runner needs
+# Install runtime system dependencies including Node.js
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     inotify-tools \
     coreutils \
     git \
     bash \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get purge -y --auto-remove
 
@@ -61,9 +57,7 @@ RUN mkdir -p /app/tasks /app/logs /app/playground/input_files /app/playground/ou
 COPY . .
 
 # Make task runner script executable and change ownership (must be done as root)
-
 RUN chmod +x task-runner.sh && \
-
     chown -R sevdo:sevdo /app
 
 # Switch to non-root user (LAST step)
