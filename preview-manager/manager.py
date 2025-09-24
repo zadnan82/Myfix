@@ -89,7 +89,7 @@ class PreviewManager:
                 mem_reservation="128m",
                 cpu_period=100000,
                 cpu_quota=50000,  # 0.5 CPU
-                network="sevdo2_sevdo-network",
+                network="sevdo_sevdo-network",
             )
 
             preview_data = {
@@ -237,7 +237,7 @@ CMD ["npm", "start"]
             detach=True,
             remove=True,  # Auto-cleanup when stopped
             mem_limit="512m",
-            network="sevdo2_sevdo-network",
+            network="sevdo_sevdo-network",
         )
 
         return container

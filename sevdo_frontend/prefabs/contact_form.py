@@ -167,6 +167,12 @@ PREFAB_METADATA = {
     "backend_handler": "cfh",
     "api_path": "/api/contact",
     "method": "POST",
+    "imports": [
+        "import { useNavigate } from 'react-router-dom';"
+    ],
+    "hooks": [
+        "const navigate = useNavigate();"
+    ]
 }
 
 # Register with token "cf"

@@ -6,10 +6,11 @@ import asyncio
 import tempfile
 import threading
 import time
+import httpx
 import requests
 from pathlib import Path
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Query
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -20,7 +21,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 import logging
 import zipfile
+# Add this to your templates.py file
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import mimetypes
 from user_backend.app.models import (
     Project,
     ProjectType,
@@ -33,6 +38,11 @@ from user_backend.app.schemas import (
 from user_backend.app.core.security import get_current_active_user
 from user_backend.app.db_setup import get_db
 
+import asyncio
+from typing import Dict
+import uuid
+from datetime import datetime
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -41,6 +51,9 @@ TEMPLATES_DIR = Path("/app/templates")
 
 # Global dictionary to track running React servers
 active_react_servers = {}
+
+# Add global dictionary to track generation status
+generation_status: Dict[str, Dict] = {}
 
 # =============================================================================
 # PYDANTIC MODELS
@@ -126,6 +139,199 @@ class GenerationResult(BaseModel):
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
+
+@router.post("/{template_name}/generate", response_model=Dict)
+async def generate_custom_template_async(
+    template_name: str,
+    request: TemplateGenerateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Start async template generation and return immediately with generation ID"""
+
+    template_path = TEMPLATES_DIR / template_name
+    if not template_path.exists():
+        raise HTTPException(
+            status_code=404, detail=f"Template '{template_name}' not found"
+        )
+
+    # Create unique generation ID
+    generation_id = f"{template_name}_{request.project_name}_{current_user.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+    # Initialize status tracking
+    generation_status[generation_id] = {
+        "status": "started",
+        "progress": 0,
+        "message": "Initializing template generation...",
+        "started_at": datetime.now().isoformat(),
+        "template_name": template_name,
+        "project_name": request.project_name,
+        "user_id": current_user.id,
+    }
+
+    # Start background generation task
+    asyncio.create_task(
+        run_generation_background(
+            generation_id, template_name, request, current_user.id, db
+        )
+    )
+
+    # Return immediately with generation ID
+    return {
+        "success": True,
+        "generation_id": generation_id,
+        "status": "started",
+        "message": "Template generation started. Use the status endpoint to check progress.",
+        "status_url": f"/api/v1/templates/{template_name}/status/{generation_id}",
+    }
+
+
+async def run_generation_background(
+    generation_id: str,
+    template_name: str,
+    request: TemplateGenerateRequest,
+    user_id: int,
+    db: Session,
+):
+    """Background task to run actual template generation"""
+
+    try:
+        # Update status
+        generation_status[generation_id].update(
+            {
+                "status": "generating",
+                "progress": 10,
+                "message": "Running SEVDO integrator...",
+            }
+        )
+
+        output_dir = Path("/app/generated_websites") / generation_id
+        output_dir.parent.mkdir(exist_ok=True)
+
+        env = os.environ.copy()
+        env.update(
+            {
+                "SEVDO_PROJECT_NAME": request.project_name,
+                "SEVDO_COMPANY_NAME": request.customizations.get("company_name", ""),
+                "SEVDO_PRIMARY_COLOR": request.customizations.get(
+                    "primary_color", "#3b82f6"
+                ),
+            }
+        )
+
+        generation_status[generation_id].update(
+            {
+                "progress": 20,
+                "message": "Extracting template tokens and generating components...",
+            }
+        )
+
+        # Run integrator with longer timeout
+        cmd = ["python", "/app/sevdo_integrator.py", template_name, str(output_dir)]
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd="/app",
+            env=env,
+        )
+
+        generation_status[generation_id].update(
+            {
+                "progress": 50,
+                "message": "Installing npm dependencies (this may take several minutes)...",
+            }
+        )
+
+        # Wait for process with no timeout
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            error_msg = stderr.decode() if stderr else "Unknown error"
+            generation_status[generation_id].update(
+                {
+                    "status": "failed",
+                    "progress": 0,
+                    "message": f"Generation failed: {error_msg}",
+                    "error": error_msg,
+                }
+            )
+            return
+
+        generation_status[generation_id].update(
+            {"progress": 90, "message": "Finalizing project files..."}
+        )
+
+        if output_dir.exists():
+            file_count = len([f for f in output_dir.rglob("*") if f.is_file()])
+        else:
+            raise Exception("Output directory not created")
+
+        # Create database record
+        new_project = Project(
+            name=request.project_name,
+            description=f"Generated from {template_name} template",
+            project_type=ProjectType.WEB_APP,
+            user_id=user_id,
+            config={
+                "template_used": template_name,
+                "generation_id": generation_id,
+                "customizations": request.customizations,
+                "generated_at": datetime.now().isoformat(),
+                "output_directory": str(output_dir),
+                "file_count": file_count,
+            },
+        )
+
+        db.add(new_project)
+        db.commit()
+        db.refresh(new_project)
+
+        # Final success status
+        generation_status[generation_id].update(
+            {
+                "status": "completed",
+                "progress": 100,
+                "message": f"Successfully generated {request.project_name} with {file_count} files",
+                "completed_at": datetime.now().isoformat(),
+                "file_count": file_count,
+                "project_id": new_project.id,
+                "output_directory": str(output_dir),
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Background generation failed: {e}")
+        generation_status[generation_id].update(
+            {
+                "status": "failed",
+                "progress": 0,
+                "message": f"Generation failed: {str(e)}",
+                "error": str(e),
+                "failed_at": datetime.now().isoformat(),
+            }
+        )
+
+
+@router.get("/{template_name}/status/{generation_id}")
+async def get_generation_status(template_name: str, generation_id: str):
+    """Get the current status of a template generation"""
+
+    if generation_id not in generation_status:
+        raise HTTPException(status_code=404, detail="Generation not found")
+
+    status_data = generation_status[generation_id]
+
+    # Clean up completed/failed generations after 1 hour
+    if status_data["status"] in ["completed", "failed"]:
+        started_at = datetime.fromisoformat(status_data["started_at"])
+        if (datetime.now() - started_at).total_seconds() > 3600:  # 1 hour
+            del generation_status[generation_id]
+            return {"status": "expired", "message": "Generation status has expired"}
+
+    return status_data
 
 
 def get_template_metadata(template_dir: Path) -> Optional[SevdoTemplateMetadata]:
@@ -315,100 +521,6 @@ async def list_templates(
 
     templates.sort(key=lambda x: (-int(x.is_featured), -x.rating, x.name))
     return templates[offset : offset + limit]
-
-
-@router.post("/{template_name}/generate", response_model=GenerationResult)
-async def generate_custom_template(
-    template_name: str,
-    request: TemplateGenerateRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
-):
-    """Generate a customized website using sevdo_integrator.py"""
-
-    template_path = TEMPLATES_DIR / template_name
-
-    if not template_path.exists() or not template_path.is_dir():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template '{template_name}' not found",
-        )
-
-    try:
-        generation_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = (
-            Path("/app/generated_websites")
-            / f"{template_name}_{request.project_name}_{current_user.id}_{generation_id}"
-        )
-        output_dir.parent.mkdir(exist_ok=True)
-
-        env = os.environ.copy()
-        env.update(
-            {
-                "SEVDO_PROJECT_NAME": request.project_name,
-                "SEVDO_COMPANY_NAME": request.customizations.get("company_name", ""),
-                "SEVDO_PRIMARY_COLOR": request.customizations.get(
-                    "primary_color", "#3b82f6"
-                ),
-            }
-        )
-
-        logger.info(f"Generating website: {template_name} -> {output_dir}")
-
-        cmd = ["python", "/app/sevdo_integrator.py", template_name, str(output_dir)]
-
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd="/app",
-            env=env,
-        )
-
-        stdout, stderr = await process.communicate()
-
-        if process.returncode != 0:
-            error = stderr.decode() if stderr else "Unknown error"
-            logger.error(f"Integrator failed: {error}")
-            raise HTTPException(status_code=500, detail=f"Generation failed: {error}")
-
-        if output_dir.exists():
-            file_count = len([f for f in output_dir.rglob("*") if f.is_file()])
-        else:
-            raise HTTPException(status_code=500, detail="Output directory not created")
-
-        new_project = Project(
-            name=request.project_name,
-            description=f"Generated from {template_name} template",
-            project_type=ProjectType.WEB_APP,
-            user_id=current_user.id,
-            config={
-                "template_used": template_name,
-                "generation_id": generation_id,
-                "customizations": request.customizations,
-                "generated_at": datetime.now().isoformat(),
-                "output_directory": str(output_dir),
-                "file_count": file_count,
-            },
-        )
-
-        db.add(new_project)
-        db.commit()
-        db.refresh(new_project)
-
-        return GenerationResult(
-            success=True,
-            project_name=request.project_name,
-            files_count=file_count,
-            message=f"Successfully generated {request.project_name} with {file_count} files",
-            generation_id=generation_id,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Generation failed for {template_name}: {e}")
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 
 @router.get("/{template_name}/live/{generation_id}")
@@ -614,37 +726,6 @@ async def serve_static_build(build_dir: Path):
         )
 
 
-# Add endpoint to serve static assets from build directory
-@router.get("/static/{generation_path}/{file_path:path}")
-async def serve_static_assets(generation_path: str, file_path: str):
-    """Serve static assets from built React app"""
-
-    generated_dir = Path("/app/generated_websites")
-    website_dir = generated_dir / generation_path
-    asset_path = website_dir / "frontend" / "build" / file_path
-
-    if not asset_path.exists():
-        raise HTTPException(status_code=404, detail="Asset not found")
-
-    # Determine media type
-    media_type = "application/octet-stream"
-    suffix = asset_path.suffix.lower()
-    media_types = {
-        ".html": "text/html",
-        ".css": "text/css",
-        ".js": "application/javascript",
-        ".json": "application/json",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".gif": "image/gif",
-        ".svg": "image/svg+xml",
-        ".ico": "image/x-icon",
-    }
-    media_type = media_types.get(suffix, media_type)
-
-    return FileResponse(path=asset_path, media_type=media_type)
-
-
 @router.get("/{template_name}/live-status/{generation_id}")
 async def get_live_website_status(template_name: str, generation_id: str):
     """Check if a React development server is running for this generation"""
@@ -794,3 +875,340 @@ async def templates_health_check():
         "template_count": template_count,
         "active_react_servers": len(active_react_servers),
     }
+
+
+@router.get("/{template_name}/assets/{generation_id}/static/{file_path:path}")
+async def serve_static_assets(template_name: str, generation_id: str, file_path: str):
+    """Serve static assets (CSS, JS, images) for built React app"""
+
+    # Find the generated website
+    generated_dir = Path("/app/generated_websites")
+    website_dir = None
+
+    for dir_path in generated_dir.iterdir():
+        if (
+            dir_path.is_dir()
+            and template_name in dir_path.name
+            and generation_id in dir_path.name
+        ):
+            website_dir = dir_path
+            break
+
+    if not website_dir:
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    asset_path = website_dir / "frontend" / "build" / "static" / file_path
+
+    if not asset_path.exists() or not asset_path.is_file():
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    # Determine media type
+    media_type, _ = mimetypes.guess_type(str(asset_path))
+    if not media_type:
+        media_type = "application/octet-stream"
+
+    return FileResponse(path=asset_path, media_type=media_type)
+
+
+@router.get("/{template_name}/preview-built/{generation_id}")
+async def serve_built_website(template_name: str, generation_id: str):
+    """Serve the built React app with proper React Router support"""
+    return await serve_react_app(template_name, generation_id, "/")
+
+
+@router.get("/{template_name}/preview-built/{generation_id}/{path:path}")
+async def serve_built_website_with_path(
+    template_name: str, generation_id: str, path: str
+):
+    """Handle all React Router paths by serving index.html"""
+    return await serve_react_app(template_name, generation_id, f"/{path}")
+
+
+async def serve_react_app(template_name: str, generation_id: str, requested_path: str):
+    """Serve React app with proper routing support"""
+
+    # Find the generated website
+    generated_dir = Path("/app/generated_websites")
+    website_dir = None
+
+    for dir_path in generated_dir.iterdir():
+        if (
+            dir_path.is_dir()
+            and template_name in dir_path.name
+            and generation_id in dir_path.name
+        ):
+            website_dir = dir_path
+            break
+
+    if not website_dir:
+        logger.error(f"Website directory not found for {template_name}/{generation_id}")
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    build_dir = website_dir / "frontend" / "build"
+
+    if not build_dir.exists():
+        logger.error(f"Build directory not found: {build_dir}")
+        raise HTTPException(
+            status_code=404,
+            detail="Built website not found - React build may have failed",
+        )
+
+    # For static assets, serve them directly
+    if requested_path.startswith("/static/"):
+        asset_path = build_dir / requested_path.lstrip("/")
+        if asset_path.exists():
+            media_type, _ = mimetypes.guess_type(str(asset_path))
+            if not media_type:
+                media_type = "application/octet-stream"
+            return FileResponse(path=asset_path, media_type=media_type)
+        else:
+            logger.error(f"Asset not found: {asset_path}")
+            raise HTTPException(status_code=404, detail="Asset not found")
+
+    # For all other paths, serve index.html (React Router will handle routing)
+    index_file = build_dir / "index.html"
+    if not index_file.exists():
+        logger.error(f"index.html not found: {index_file}")
+        raise HTTPException(status_code=404, detail="index.html not found")
+
+    try:
+        with open(index_file, "r", encoding="utf-8") as f:
+            html_content = f.read()
+
+        # Fix asset paths to work with our API structure
+        base_url = f"/api/v1/templates/{template_name}/preview-built/{generation_id}"
+
+        # Replace relative paths with absolute paths
+        html_content = html_content.replace(
+            'href="/static/', f'href="{base_url}/static/'
+        )
+        html_content = html_content.replace('src="/static/', f'src="{base_url}/static/')
+
+        logger.info(
+            f"Serving React app for {template_name}/{generation_id} at path: {requested_path}"
+        )
+        return HTMLResponse(content=html_content)
+
+    except Exception as e:
+        logger.error(f"Error serving React app: {e}")
+        raise HTTPException(status_code=500, detail=f"Error serving website: {str(e)}")
+
+
+@router.get("/{template_name}/preview-built/{generation_id}/static/{file_path:path}")
+async def serve_built_static_assets(
+    template_name: str, generation_id: str, file_path: str
+):
+    """Serve static assets for built React app"""
+
+    # Find the generated website
+    generated_dir = Path("/app/generated_websites")
+    website_dir = None
+
+    for dir_path in generated_dir.iterdir():
+        if (
+            dir_path.is_dir()
+            and template_name in dir_path.name
+            and generation_id in dir_path.name
+        ):
+            website_dir = dir_path
+            break
+
+    if not website_dir:
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    asset_path = website_dir / "frontend" / "build" / "static" / file_path
+
+    if not asset_path.exists() or not asset_path.is_file():
+        logger.error(f"Static asset not found: {asset_path}")
+        raise HTTPException(
+            status_code=404, detail=f"Asset not found: /static/{file_path}"
+        )
+
+    # Determine media type
+    media_type, _ = mimetypes.guess_type(str(asset_path))
+    if not media_type:
+        media_type = "application/octet-stream"
+
+    return FileResponse(path=asset_path, media_type=media_type)
+
+
+@router.get("/preview/{generation_id}")
+async def serve_simple_preview(generation_id: str):
+    """Serve React app on a clean, simple path"""
+
+    generated_dir = Path("/app/generated_websites")
+    website_dir = None
+
+    for dir_path in generated_dir.iterdir():
+        if generation_id in dir_path.name:
+            website_dir = dir_path
+            break
+
+    if not website_dir:
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    build_dir = website_dir / "frontend" / "build"
+    index_file = build_dir / "index.html"
+
+    if not index_file.exists():
+        raise HTTPException(status_code=404, detail="Built website not found")
+
+    with open(index_file, "r", encoding="utf-8") as f:
+        html_content = f.read()
+
+    html_content = html_content.replace(
+        'src="/static/', f'src="/api/v1/templates/preview/{generation_id}/static/'
+    )
+    html_content = html_content.replace(
+        'href="/static/', f'href="/api/v1/templates/preview/{generation_id}/static/'
+    )
+
+    return HTMLResponse(content=html_content)
+
+
+@router.get("/preview/{generation_id}/static/{file_path:path}")
+async def serve_simple_static(generation_id: str, file_path: str):
+    """Serve static files for simple preview"""
+
+    generated_dir = Path("/app/generated_websites")
+    website_dir = None
+
+    for dir_path in generated_dir.iterdir():
+        if generation_id in dir_path.name:
+            website_dir = dir_path
+            break
+
+    if not website_dir:
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    asset_path = website_dir / "frontend" / "build" / "static" / file_path
+
+    if not asset_path.exists():
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    media_type, _ = mimetypes.guess_type(str(asset_path))
+    return FileResponse(
+        path=asset_path, media_type=media_type or "application/octet-stream"
+    )
+
+
+@router.get("/preview/{generation_id}/{path:path}")
+async def serve_simple_spa_routes(generation_id: str, path: str):
+    """Handle SPA routes by serving index.html"""
+    return await serve_simple_preview(generation_id)
+
+
+@router.get("/app/{generation_id}")
+async def serve_app_at_root(generation_id: str):
+    """Serve React app at simpler path with proper navigation"""
+
+    generated_dir = Path("/app/generated_websites")
+    website_dir = None
+
+    for dir_path in generated_dir.iterdir():
+        if generation_id in dir_path.name:
+            website_dir = dir_path
+            break
+
+    if not website_dir:
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    build_dir = website_dir / "frontend" / "build"
+    index_file = build_dir / "index.html"
+
+    if not index_file.exists():
+        raise HTTPException(status_code=404, detail="Built website not found")
+
+    with open(index_file, "r", encoding="utf-8") as f:
+        html_content = f.read()
+
+    # Fix asset paths and navigation
+    base_path = f"/api/v1/templates/app/{generation_id}"
+
+    html_content = html_content.replace('src="/static/', f'src="{base_path}/static/')
+    html_content = html_content.replace('href="/static/', f'href="{base_path}/static/')
+
+    # Fix the Go Home button to stay within the app
+    html_content = html_content.replace(
+        'window.location.href = "/"', f'window.location.href = "{base_path}"'
+    )
+
+    return HTMLResponse(content=html_content)
+
+
+@router.get("/blog/{path:path}")
+async def proxy_blog_api(path: str, request: Request):
+    """Proxy blog API requests to generated backend"""
+
+    # Extract generation_id from referrer or session
+    referer = request.headers.get("referer", "")
+    generation_id = None
+
+    if "preview-built" in referer:
+        generation_id = referer.split("/")[-1]
+
+    if not generation_id:
+        raise HTTPException(status_code=404, detail="Blog backend not found")
+
+    backend_url = f"http://localhost:9001/api/blog/{path}"
+
+    # Forward query parameters
+    query_params = str(request.url.query)
+    if query_params:
+        backend_url += f"?{query_params}"
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(backend_url)
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+            )
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Backend unavailable: {e}")
+
+
+# Add POST/PUT/DELETE proxies as needed
+@router.post("/blog/{path:path}")
+async def proxy_blog_api_post(path: str, request: Request):
+    # Similar proxy logic for POST requests
+    pass
+
+
+# In templates.py - create a cleaner preview system
+@router.get("/view/{generation_id}")
+@router.get("/view/{generation_id}/{path:path}")
+async def serve_clean_preview(generation_id: str, path: str = ""):
+    """Serve React apps at clean URLs that don't break routing"""
+
+    generated_dir = Path("/app/generated_websites")
+    website_dir = None
+
+    for dir_path in generated_dir.iterdir():
+        if generation_id in dir_path.name:
+            website_dir = dir_path
+            break
+
+    if not website_dir:
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    build_dir = website_dir / "frontend" / "build"
+    index_file = build_dir / "index.html"
+
+    if not index_file.exists():
+        raise HTTPException(status_code=404, detail="Built website not found")
+
+    # Serve with minimal path manipulation
+    with open(index_file, "r", encoding="utf-8") as f:
+        html_content = f.read()
+
+    # Simple asset path fixes
+    html_content = html_content.replace(
+        'src="/static/', f'src="/api/v1/templates/view/{generation_id}/static/'
+    )
+    html_content = html_content.replace(
+        'href="/static/', f'href="/api/v1/templates/view/{generation_id}/static/'
+    )
+
+    return HTMLResponse(content=html_content)

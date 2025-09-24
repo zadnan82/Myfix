@@ -175,7 +175,8 @@ services:
       - SEVDO_BACKEND_URL=http://sevdo-backend:8001
       - SEVDO_FRONTEND_URL=http://sevdo-frontend:8002
       - PREVIEW_MANAGER_URL=http://preview-manager:8080
-      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*} 
+      - LLM_GATEWAY_URL=http://192.168.16.103:8000        
     volumes:
       - sevdo_logs:/app/logs
       - ./templates:/app/templates
@@ -186,6 +187,7 @@ services:
     ports:
       # Only expose port in development mode
       - ${EXPOSE_USER_BACKEND_PORT:-8000:8000}
+      - "9001:9001"
     depends_on:
       postgres:
         condition: service_healthy

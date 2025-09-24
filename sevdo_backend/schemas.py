@@ -133,6 +133,55 @@ class BlogSearchResponse(BaseModel):
 
 
 # ============================================================================
+# ADMIN SCHEMAS
+# ============================================================================
+
+
+class BlogPostCreateData(BaseModel):
+    title: str
+    content: str
+    excerpt: Optional[str] = None
+    featured_image: Optional[str] = None
+    published: bool = False
+    tags: List[str] = []
+
+
+class BlogPostUpdateData(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    excerpt: Optional[str] = None
+    featured_image: Optional[str] = None
+    published: Optional[bool] = None
+    tags: Optional[List[str]] = None
+
+
+class AdminBlogPostResponse(BaseModel):
+    id: int
+    title: str
+    slug: str
+    excerpt: Optional[str] = None
+    content: str
+    featured_image: Optional[str] = None
+    published: bool
+    created_at: datetime
+    updated_at: datetime
+    author_id: int
+    author_username: str
+    tags: List[str] = []
+    word_count: int
+    reading_time_minutes: int
+
+
+class AdminBlogPostsListResponse(BaseModel):
+    posts: List[AdminBlogPostResponse]
+    total: int
+    page: int
+    limit: int
+    has_next: bool
+    has_prev: bool
+
+
+# ============================================================================
 # CHAT SCHEMAS
 # ============================================================================
 
@@ -154,3 +203,13 @@ class EmailFormData(BaseModel):
     subject: str
     message: str
     from_name: Optional[str] = None
+
+
+# ============================================================================
+# NEWSLETTER SCHEMAS
+# ============================================================================
+
+
+class NewsletterSubscriptionData(BaseModel):
+    email: str
+    name: Optional[str] = None

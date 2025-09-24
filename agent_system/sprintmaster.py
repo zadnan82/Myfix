@@ -60,9 +60,8 @@ def generate_file_paths(task: str, model: str = "gpt-oss:20b") -> List[str]:
     # Call LLM gateway via HTTP (same pattern as coding_agent) using JSON body
     try:
         base_url = os.environ.get(
-            "LLM_GATEWAY_URL", "http://user-backend:8000"
+            "LLM_GATEWAY_URL", "http://192.168.16.103:8000"
         )
-        url_fc = f"{base_url}/ollama_fc"
         url_simple = f"{base_url}/ollama"
         payload = {
             "model": model,
@@ -70,9 +69,7 @@ def generate_file_paths(task: str, model: str = "gpt-oss:20b") -> List[str]:
             "system_prompt": system_prompt,
         }
 
-        http_resp = requests.post(url_fc, json=payload, timeout=60)
-        if http_resp.status_code != 200:
-            http_resp = requests.post(url_simple, json=payload, timeout=60)
+        http_resp = requests.post(url_simple, json=payload, timeout=60)
 
         data = http_resp.json()
         content = data.get("content")
@@ -163,7 +160,7 @@ def plan_subtasks(task: str, model: str = "gpt-oss:20b") -> Dict[str, Any]:
 
     try:
         base_url = os.environ.get(
-            "LLM_GATEWAY_URL", "http://user-backend:8000"
+            "LLM_GATEWAY_URL", "http://192.168.16.103:8000"
         )
 
         url_fc = f"{base_url}/ollama_fc"

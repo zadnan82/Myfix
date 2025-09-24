@@ -33,8 +33,8 @@ from dotenv import load_dotenv
 import logging
 
 # Import models and schemas (CORRECTED ORDER)
-from models import Base, UserDB, SessionDB, ContactFormDB, BlogPostDB, BlogTagDB, PostTagDB
-from schemas import User, UserResponse, ContactFormData, BlogPostResponse, BlogPostsListResponse, BlogTagResponse
+from models import Base, UserDB, SessionDB, ContactFormDB, BlogPostDB, BlogTagDB, PostTagDB, NewsletterSubscriberDB, ChatRoomDB, ChatMessageDB, EmailLogDB
+from schemas import User, UserResponse, ContactFormData, BlogPostResponse, BlogPostsListResponse, BlogTagResponse, BlogPostDetailResponse, BlogSearchResult, BlogSearchResponse, BlogTagsListResponse, TaggedPostsResponse, NewsletterSubscriptionData, ChatMessageData, EmailFormData
 
 # FastAPI app
 app = FastAPI(default_response_class=ORJSONResponse)
@@ -108,6 +108,120 @@ def get_current_user(session: "SessionDB" = Depends(get_current_session),
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
+
+# Auto-create tables on startup
+Base.metadata.create_all(bind=engine)
+
+@app.on_event("startup")
+def seed_database():
+    \"\"\"Create test data if database is empty\"\"\"
+    db = SessionLocal()
+    try:
+        # Only seed if no blog posts exist
+        if db.query(BlogPostDB).count() == 0:
+            print("🌱 Seeding database with test data...")
+            
+            # Create test user
+            test_user = UserDB(
+                username="admin", 
+                password=pwd_context.hash("admin123"), 
+                email="admin@devinsights.com",
+                is_active=True
+            )
+            db.add(test_user)
+            db.commit()
+            db.refresh(test_user)
+            
+            # Create test tags first
+            tags_data = [
+                "React", "Design", "Tutorial", "JavaScript", "Web Development", "TypeScript"
+            ]
+            
+            tag_objects = {}
+            for tag_name in tags_data:
+                tag = BlogTagDB(name=tag_name)
+                db.add(tag)
+                tag_objects[tag_name] = tag
+            
+            db.commit()
+            
+            # Create test blog posts (using data from blog_list.py)
+            posts_data = [
+                {
+                    "title": "Getting Started with React Hooks",
+                    "content": "Learn how to use React Hooks to build more efficient and cleaner functional components in your applications. React Hooks revolutionized how we write React components by allowing us to use state and other React features in functional components. This comprehensive guide will take you through everything you need to know about React Hooks, from the basics to advanced patterns.",
+                    "excerpt": "Learn how to use React Hooks to build more efficient and cleaner functional components in your applications.",
+                    "slug": "getting-started-with-react-hooks",
+                    "tags": ["React", "JavaScript", "Tutorial"],
+                },
+                {
+                    "title": "CSS Grid vs Flexbox: When to Use What",
+                    "content": "A comprehensive guide to understanding the differences between CSS Grid and Flexbox and when to use each layout method. Both CSS Grid and Flexbox are powerful layout systems, but they serve different purposes. Understanding when to use each one will make you a more effective web developer.",
+                    "excerpt": "A comprehensive guide to understanding the differences between CSS Grid and Flexbox and when to use each layout method.",
+                    "slug": "css-grid-vs-flexbox-when-to-use-what",
+                    "tags": ["Design", "Web Development"],
+                },
+                {
+                    "title": "Building REST APIs with Node.js",
+                    "content": "Step-by-step tutorial on creating robust and scalable REST APIs using Node.js, Express, and MongoDB. REST APIs are the backbone of modern web applications. In this tutorial, we'll build a complete API from scratch, covering authentication, validation, error handling, and best practices.",
+                    "excerpt": "Step-by-step tutorial on creating robust and scalable REST APIs using Node.js, Express, and MongoDB.",
+                    "slug": "building-rest-apis-with-nodejs",
+                    "tags": ["JavaScript", "Tutorial", "Web Development"],
+                },
+                {
+                    "title": "Modern JavaScript ES6+ Features",
+                    "content": "Explore the latest JavaScript features including arrow functions, destructuring, async/await, and more. ES6+ brought many powerful features to JavaScript that make code more readable, maintainable, and enjoyable to write. Let's explore these features with practical examples.",
+                    "excerpt": "Explore the latest JavaScript features including arrow functions, destructuring, async/await, and more.",
+                    "slug": "modern-javascript-es6-plus-features", 
+                    "tags": ["JavaScript", "Tutorial"],
+                },
+                {
+                    "title": "Responsive Web Design Best Practices",
+                    "content": "Learn the fundamental principles of responsive web design and how to create websites that work on all devices. Responsive design is no longer optional - it's essential. This guide covers everything from flexible grids to media queries and modern CSS techniques.",
+                    "excerpt": "Learn the fundamental principles of responsive web design and how to create websites that work on all devices.",
+                    "slug": "responsive-web-design-best-practices",
+                    "tags": ["Design", "Web Development"],
+                },
+                {
+                    "title": "Introduction to TypeScript",
+                    "content": "Discover how TypeScript can improve your JavaScript development with static typing and better tooling. TypeScript adds type safety to JavaScript, making your code more reliable and easier to maintain. Learn the basics and see how it can transform your development workflow.",
+                    "excerpt": "Discover how TypeScript can improve your JavaScript development with static typing and better tooling.",
+                    "slug": "introduction-to-typescript",
+                    "tags": ["TypeScript", "JavaScript", "Tutorial"],
+                },
+            ]
+            
+            # Create blog posts
+            for i, post_data in enumerate(posts_data):
+                post = BlogPostDB(
+                    title=post_data["title"],
+                    slug=post_data["slug"],
+                    content=post_data["content"],
+                    excerpt=post_data["excerpt"],
+                    published=True,
+                    author_id=test_user.id,
+                    created_at=datetime.utcnow() - timedelta(days=i*2)  # Spread posts over time
+                )
+                db.add(post)
+                db.commit()
+                db.refresh(post)
+                
+                # Add tags to posts
+                for tag_name in post_data["tags"]:
+                    if tag_name in tag_objects:
+                        post_tag = PostTagDB(post_id=post.id, tag_id=tag_objects[tag_name].id)
+                        db.add(post_tag)
+                
+            db.commit()
+            print(f"✅ Seeded database with {len(posts_data)} blog posts and {len(tags_data)} tags")
+        else:
+            print("ℹ️  Database already contains data, skipping seed")
+            
+    except Exception as e:
+        print(f"❌ Error seeding database: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 """
 
@@ -262,11 +376,6 @@ class BackendCompiler:
         if include_imports:
             # Add core imports (includes all models and schemas now)
             parts.append(CORE_IMPORTS)
-
-            # Create tables for all models - CRITICAL for auto table creation
-            parts.append(
-                "\n# Auto-create tables on startup\nBase.metadata.create_all(bind=engine)\n\n"
-            )
 
         for token in tokens:
             if token in self.mapping:

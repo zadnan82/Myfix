@@ -99,6 +99,16 @@ class ConnectionManager:
                     # Connection is closed, will be cleaned up on next disconnect
                     pass
 
+    async def send_preview_update(self, message: dict, user_id: int):
+        """Send preview update notification to specific user"""
+        preview_message = {
+            "type": "preview_update",
+            "data": message,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+        await self.send_personal_message(preview_message, user_id)
+
 
 # Global connection manager
 manager = ConnectionManager()
@@ -447,3 +457,21 @@ async def broadcast_system_announcement(
     }
 
     await manager.broadcast_to_all(announcement)
+
+
+async def notify_preview_update(
+    user_id: int,
+    generation_id: str,
+    changes: List[str],
+    modified_files: List[str] = None,
+):
+    """Send preview update notification to user"""
+    message = {
+        "generation_id": generation_id,
+        "changes": changes,
+        "modified_files": modified_files or [],
+        "action": "reload_preview",
+        "message": f"Applied changes: {', '.join(changes)}",
+    }
+
+    await manager.send_preview_update(message, user_id)

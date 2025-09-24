@@ -122,7 +122,7 @@ def solve_subtask(
     rag_context_text = ""
     if rag_context:
         rag_context_text = "\n\nRelevant context from knowledge base:\n"
-        for ctx in rag_context[:2]:  # Use top 2 most relevant
+        for ctx in rag_context[:1]:  # Use top 2 most relevant
             rag_context_text += (
                 f"- {ctx['title']}: {ctx['content'][:200]}...\n"
             )
@@ -161,8 +161,7 @@ def solve_subtask(
     user_prompt = f"Subtask: {subtask}\n\nContext (optional): {enhanced_context or 'N/A'}"
 
     # Use FastAPI LLM gateway endpoint (configurable) with JSON body
-    base_url = os.environ.get("LLM_GATEWAY_URL", "http://user-backend:8000")
-    url_fc = f"{base_url}/ollama_fc"
+    base_url = os.environ.get("LLM_GATEWAY_URL", "http://192.168.16.103:8000")
     url_simple = f"{base_url}/ollama"
 
     content = ""

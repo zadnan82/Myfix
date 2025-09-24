@@ -33,85 +33,140 @@ def render_prefab(args, props):
         except Exception:
             title = args
 
-    # Clear handler (reset list, count, total and echo)
-    clear_handler = (
-        " onClick={() => {"
-        + f"const key='{cart_key}';"
-        + "localStorage.setItem(key,'[]');"
-        + "const list=document.getElementById('ac-list');"
-        + "if(list){"
-        + "  list.innerHTML='';"
-        + "  const empty=document.createElement('div');"
-        + "  empty.id='ac-empty'; empty.className='text-gray-400 italic py-4';"
-        + f"  empty.textContent='{empty_text}';"
-        + "  list.appendChild(empty);"
-        + "}"
-        + "const cnt=document.getElementById('ac-count'); if(cnt){cnt.textContent='0';}"
-        + f"const totEl=document.getElementById('ac-total'); if(totEl){{ totEl.textContent='{currency}0.00'; }}"
-        + "window.sevdoAct('api:POST /api/echo|' + JSON.stringify({event:'cart_clear', ts: Date.now()}));"
-        + "}}"
-    )
+    # Generate React component with proper hooks instead of DOM manipulation
+    # Use safe string formatting to avoid f-string conflicts
 
-    # Checkout handler (echo cart content)
-    if checkout_action:
-        safe = checkout_action.replace("\\", "\\\\").replace("'", "\\'")
-        checkout_handler = f" onClick={{() => window.sevdoAct('{safe}')}}"
-    else:
-        endpoint = checkout_path or "/api/echo"
-        checkout_handler = (
-            " onClick={() => {"
-            + f"const key='{cart_key}'; let cart=[]; try{{cart=JSON.parse(localStorage.getItem(key)||'[]')}}catch(e){{cart=[]}}"
-            + "window.sevdoAct('api:"
-            + checkout_method
-            + " "
-            + endpoint
-            + "|' + JSON.stringify({event:'checkout', cart:cart, ts: Date.now()}));"
-            + "}}"
-        )
+    # Create the JavaScript template using string concatenation
+    js_template = '''
+import { useState, useEffect } from 'react';
 
-    # Init: hydrate from localStorage on render
-    init_handler = (
-        " onLoad={() => {"
-        + f"const key='{cart_key}'; let cart=[]; try{{cart=JSON.parse(localStorage.getItem(key)||'[]')}}catch(e){{cart=[]}}"
-        + "const list=document.getElementById('ac-list'); if(!list) return;"
-        + "const cnt=document.getElementById('ac-count'); const totEl=document.getElementById('ac-total');"
-        + "list.innerHTML=''; let tot=0;"
-        + f"if(cart.length===0){{ const empty=document.createElement('div'); empty.id='ac-empty'; empty.className='text-gray-400 italic py-4'; empty.textContent='{empty_text}'; list.appendChild(empty); }}"
-        + "else { for (const item of cart){ tot+=Number(item.price||0);"
-        + "  const row=document.createElement('div'); row.className='flex items-center justify-between py-2';"
-        + "  const left=document.createElement('div'); left.className='flex items-center gap-3';"
-        + "  if(item.image){ const img=document.createElement('img'); img.src=item.image; img.className='w-10 h-10 rounded object-cover'; left.appendChild(img); }"
-        + "  const info=document.createElement('div');"
-        + "  const nm=document.createElement('div'); nm.className='font-medium'; nm.textContent=String(item.name||''); info.appendChild(nm);"
-        + f"  const sub=document.createElement('div'); sub.className='text-sm text-gray-500'; sub.textContent='{currency}' + Number(item.price||0).toFixed(2); info.appendChild(sub);"
-        + "  left.appendChild(info);"
-        + f"  const right=document.createElement('div'); right.className='text-sm text-gray-700'; right.textContent='{currency}' + Number(item.price||0).toFixed(2);"
-        + "  row.appendChild(left); row.appendChild(right); list.appendChild(row); }}"
-        + "if(cnt){ cnt.textContent=String(cart.length); }"
-        + f"if(totEl){{ totEl.textContent='{currency}' + Number(tot).toFixed(2); }}"
-        + "}}"
-    )
+function CartContent() {
+    const [cart, setCart] = useState([]);
+    const [total, setTotal] = useState(0);
 
-    return f"""<section className="py-6 bg-white border rounded-lg">
-  <div className="max-w-3xl mx-auto px-4">
-    <div className="flex items-center justify-between mb-4">
-      <h2 className="text-xl font-bold text-gray-900">{title} <span className="ml-2 text-sm text-gray-500">(Items: <span id="ac-count">0</span>)</span></h2>
-      <div className="flex gap-2">
-        <button className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium px-3 py-1.5 rounded text-sm"{clear_handler}>
-          {clear_text}
-        </button>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-3 py-1.5 rounded text-sm"{checkout_handler}>
-          {checkout_text}
-        </button>
-      </div>
-    </div>
-    <div className="mb-3 text-right text-gray-700">Total: <strong id="ac-total">{currency}0.00</strong></div>
-    <div id="ac-list" className="divide-y divide-gray-200">
-      <div id="ac-empty" className="text-gray-400 italic py-4">{empty_text}</div>
-    </div>
-    <img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" className="hidden"{init_handler} />
-  </div>
-</section>"""
+    // Load cart from localStorage on mount
+    useEffect(() => {
+        try {
+            const storedCart = JSON.parse(localStorage.getItem(''' + repr(cart_key) + ''' || '[]');
+            setCart(storedCart);
+            updateTotal(storedCart);
+        } catch (e) {
+            console.error('Error loading cart:', e);
+            setCart([]);
+            setTotal(0);
+        }
+    }, []);
+
+    // Update total when cart changes
+    const updateTotal = (cartItems) => {
+        const newTotal = cartItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
+        setTotal(newTotal);
+    };
+
+    // Save cart to localStorage
+    const saveCart = (newCart) => {
+        localStorage.setItem(''' + repr(cart_key) + ''', JSON.stringify(newCart));
+        setCart(newCart);
+        updateTotal(newCart);
+    };
+
+    // Clear cart
+    const handleClearCart = () => {
+        saveCart([]);
+        if (window.sevdoAct) {
+            window.sevdoAct('api:POST /api/echo|' + JSON.stringify({event: 'cart_clear', ts: Date.now()}));
+        }
+    };
+
+    // Checkout
+    const handleCheckout = () => {
+        if (''' + repr(checkout_action) + ''') {
+            if (window.sevdoAct) {
+                window.sevdoAct(''' + repr(checkout_action) + ''');
+            }
+        } else {
+            const endpoint = ''' + (repr(checkout_path) if checkout_path else '"/api/echo"') + ''';
+            if (window.sevdoAct) {
+                window.sevdoAct('api:' + ''' + repr(checkout_method) + ''' + ' ' + endpoint + '|' + JSON.stringify({event: 'checkout', cart: cart, ts: Date.now()}));
+            }
+        }
+    };
+
+    // Remove item from cart
+    const removeItem = (index) => {
+        const newCart = cart.filter((_, i) => i !== index);
+        saveCart(newCart);
+    };
+
+    return (
+        <div className="max-w-3xl mx-auto px-4">
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900">
+                    ''' + repr(title) + ''' <span className="ml-2 text-sm text-gray-500">(Items: {cart.length})</span>
+                </h2>
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleClearCart}
+                        className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium px-3 py-1.5 rounded text-sm transition-colors"
+                    >
+                        ''' + repr(clear_text) + '''
+                    </button>
+                    <button
+                        onClick={handleCheckout}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-3 py-1.5 rounded text-sm transition-colors"
+                    >
+                        ''' + repr(checkout_text) + '''
+                    </button>
+                </div>
+            </div>
+            <div className="mb-3 text-right text-gray-700">
+                Total: <strong>''' + repr(currency) + '''{total.toFixed(2)}</strong>
+            </div>
+            <div className="divide-y divide-gray-200">
+                {cart.length === 0 ? (
+                    <div className="text-gray-400 italic py-4">''' + repr(empty_text) + '''</div>
+                ) : (
+                    cart.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between py-2">
+                            <div className="flex items-center gap-3">
+                                {item.image && (
+                                    <img
+                                        src={item.image}
+                                        alt={item.name || ''}
+                                        className="w-10 h-10 rounded object-cover"
+                                    />
+                                )}
+                                <div>
+                                    <div className="font-medium">{item.name || ''}</div>
+                                    <div className="text-sm text-gray-500">''' + repr(currency) + '''{Number(item.price || 0).toFixed(2)}</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="text-sm text-gray-700">''' + repr(currency) + '''{Number(item.price || 0).toFixed(2)}</div>
+                                <button
+                                    onClick={() => removeItem(index)}
+                                    className="text-red-500 hover:text-red-700 text-sm"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+}
+
+export default function AddToCart() {
+    return (
+        <section className="py-6 bg-white border rounded-lg">
+            <CartContent />
+        </section>
+    );
+}'''
+
+    return js_template
 
 
 # Register with token "ac"

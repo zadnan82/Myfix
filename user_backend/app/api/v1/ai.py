@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException, status
-import json
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -22,6 +21,8 @@ from user_backend.app.schemas import (
 from user_backend.app.core.security import get_current_active_user
 from user_backend.app.db_setup import get_db
 from user_backend.app.core.logging_config import StructuredLogger
+
+from agent_system.sprintmaster import execute_task
 
 router = APIRouter()
 logger = StructuredLogger(__name__)
@@ -222,7 +223,8 @@ def validate_token_combination(tokens: List[str]) -> dict:
 
 
 @router.post(
-    "/project-from-description", response_model=AIProjectFromDescriptionResultSchema
+    "/project-from-description",
+    response_model=AIProjectFromDescriptionResultSchema,
 )
 async def create_project_from_description(
     ai_request: AIProjectFromDescriptionSchema,
@@ -237,22 +239,45 @@ async def create_project_from_description(
             project_type=ai_request.project_type,
         )
 
-        # Use AI to suggest tokens based on description
-        suggested_tokens = suggest_tokens_from_description(
-            ai_request.description, ai_request.project_type
-        )
+        # Plan and execute using sprintmaster logic; extract tokens from coding agent outputs
+        sm_result = execute_task(ai_request.description)
+        planned_subtasks = sm_result.get("subtasks", [])
+        execution_results = sm_result.get("results", []) or []
 
-        # Validate token combination
+        # Extract tokens and track compilation success
+        extracted_tokens_set = set()
+        successful_compilations = 0
+        for res in execution_results:
+            try:
+                output_tokens = (res or {}).get("output", "")
+                if output_tokens:
+                    for tok in output_tokens.split():
+                        cleaned = tok.strip().lower()
+                        if cleaned:
+                            extracted_tokens_set.add(cleaned)
+                compilation = (res or {}).get("compilation", {}) or {}
+                if compilation.get("success"):
+                    successful_compilations += 1
+            except Exception:
+                continue
+
+        # Prefer extracted tokens; fallback to keyword-based suggestions
+        if extracted_tokens_set:
+            suggested_tokens = list(extracted_tokens_set)
+        else:
+            suggested_tokens = suggest_tokens_from_description(
+                ai_request.description, ai_request.project_type
+            )
+
+        # Validate token combination and auto-fix basic dependencies
         validation = validate_token_combination(suggested_tokens)
-
-        if not validation["is_valid"]:
-            # Fix issues automatically where possible
-            if "e" in suggested_tokens and "r" not in suggested_tokens:
-                suggested_tokens.extend(["r", "l", "m"])
-                validation = validate_token_combination(suggested_tokens)
-
-        # Convert tokens to user-friendly features
-        suggested_features = tokens_to_features(suggested_tokens)
+        if (
+            not validation["is_valid"]
+            and "e" in suggested_tokens
+            and "r" not in suggested_tokens
+        ):
+            suggested_tokens.extend(["r", "l", "m"])
+            suggested_tokens = list(set(suggested_tokens))
 
         # Generate project name from description
         words = ai_request.description.split()[:3]
@@ -260,12 +285,44 @@ async def create_project_from_description(
         if len(suggested_name) < 5:
             suggested_name += " Website"
 
-        # Calculate confidence based on keyword matches
-        confidence = min(0.95, 0.4 + (len(suggested_tokens) * 0.1))
+        # Confidence informed by planning, compilation success, and token breadth
+        num_subtasks = (
+            len(planned_subtasks) if isinstance(planned_subtasks, list) else 0
+        )
+        total_results = len(execution_results)
+        success_rate = (
+            successful_compilations / total_results if total_results else 0.0
+        )
+        token_factor = min(0.3, 0.05 * len(suggested_tokens))
+        base_confidence = (
+            0.35
+            + (0.35 * success_rate)
+            + min(0.3, num_subtasks * 0.05)
+            + token_factor
+        )
+        confidence = min(0.95, max(0.4, base_confidence))
 
-        # Create reasoning
-        feature_names = [f.name for f in suggested_features]
-        reasoning = f"Based on your description, I suggest these features: {', '.join(feature_names)}"
+        # Reasoning derived from planned subtasks
+        def _sub_to_text(sub):
+            if isinstance(sub, dict):
+                return sub.get("task") or sub.get("description") or str(sub)
+            return str(sub)
+
+        subtasks_text = (
+            ", ".join([_sub_to_text(s) for s in planned_subtasks])
+            if planned_subtasks
+            else ""
+        )
+        compile_note = (
+            f" | Compiled {successful_compilations}/{total_results} subtasks"
+            if total_results
+            else ""
+        )
+        reasoning = (
+            f"Planned steps: {subtasks_text}{compile_note}"
+            if subtasks_text
+            else "Generated suggestions based on your description."
+        )
 
         # Store tokens in project internally (create the project)
         new_project = Project(
@@ -281,7 +338,7 @@ async def create_project_from_description(
         db.refresh(new_project)
 
         logger.info(
-            f"AI project created successfully",
+            "AI project created successfully",
             project_id=new_project.id,
             suggested_tokens=suggested_tokens,
             confidence=confidence,
@@ -290,7 +347,7 @@ async def create_project_from_description(
         return AIProjectFromDescriptionResultSchema(
             suggested_name=suggested_name,
             suggested_description=ai_request.description,
-            suggested_features=suggested_features,  # Return features, not tokens
+            suggested_tokens=suggested_tokens,
             confidence=confidence,
             reasoning=reasoning,
             project_type=ai_request.project_type or ProjectType.WEB_APP,
@@ -324,7 +381,9 @@ async def ai_chat(
             conversation_id = conversation.id
         else:
             conversation = db.execute(
-                select(AIConversation).where(AIConversation.id == conversation_id)
+                select(AIConversation).where(
+                    AIConversation.id == conversation_id
+                )
             ).scalar_one_or_none()
 
             if not conversation:
@@ -343,7 +402,9 @@ async def ai_chat(
         )
 
         # Analyze message for feature suggestions
-        suggested_tokens = suggest_tokens_from_description(chat_request.message)
+        suggested_tokens = suggest_tokens_from_description(
+            chat_request.message
+        )
         suggested_features = tokens_to_features(suggested_tokens)
 
         # Generate contextual AI response
@@ -413,6 +474,7 @@ async def analyze_website_description(
             "success": True,
             "detected_elements": detected_elements,
             "confidence": 0.85,
+            "analysis_type": analysis_type,
             "suggestions": [
                 "Consider adding more details about your target audience",
                 "Specify the main goal of your website",
@@ -422,7 +484,8 @@ async def analyze_website_description(
     except Exception as e:
         logger.error(f"Website description analysis failed: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Analysis failed"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Analysis failed",
         )
 
 

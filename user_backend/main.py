@@ -4,7 +4,7 @@ print("🚀 MAIN.PY LOADED - DEBUG TEST")
 
 import asyncio
 from datetime import datetime
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -217,6 +217,8 @@ registered_routers = []
 failed_routers = []
 
 # Core routers (required)
+# In your main.py, update the core_routers list:
+
 core_routers = [
     {"name": "auth", "prefix": "/api/v1/auth", "tags": ["Authentication"]},
     {"name": "projects", "prefix": "/api/v1/projects", "tags": ["Projects"]},
@@ -225,6 +227,11 @@ core_routers = [
     {"name": "templates", "prefix": "/api/v1/templates", "tags": ["Templates"]},
     {"name": "ai", "prefix": "/api/v1/ai", "tags": ["AI Integration"]},
     {"name": "llm_editor", "prefix": "/api/v1/llm-editor", "tags": ["LLM Editor"]},
+    {
+        "name": "ai_edit",
+        "prefix": "/api/v1/ai-edit",
+        "tags": ["AI Editing"],
+    },  # ADD THIS LINE
 ]
 
 # Enhanced routers (optional)
@@ -394,6 +401,49 @@ except Exception as e:
 # =============================================================================
 # ROOT ENDPOINTS
 # =============================================================================
+
+
+@app.api_route("/api/blog/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def proxy_blog_api(path: str, request: Request):
+    """Proxy blog API requests to generated backend"""
+
+    # Extract generation info from referer
+    referer = request.headers.get("referer", "")
+    generation_id = None
+
+    # Parse generation ID from referer URL
+    if "preview-built" in referer:
+        parts = referer.split("/")
+        if len(parts) > 2:
+            generation_id = parts[-1] or parts[-2]
+
+    if not generation_id:
+        raise HTTPException(status_code=404, detail="Blog backend not found")
+
+    # Forward to generated backend on port 9001
+    backend_url = f"http://localhost:9001/api/blog/{path}"
+
+    # Forward query parameters
+    query_params = str(request.url.query)
+    if query_params:
+        backend_url += f"?{query_params}"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if request.method == "GET":
+                response = await client.get(backend_url)
+            elif request.method == "POST":
+                body = await request.body()
+                response = await client.post(backend_url, content=body)
+            # Add other methods as needed
+
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+            )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Blog backend unavailable: {e}")
 
 
 @app.post("/api/v1/projects/{project_id}/preview")

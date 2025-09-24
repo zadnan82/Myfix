@@ -139,3 +139,10 @@ def render_prefab(args, props):
 
 # Register with token "ho"
 COMPONENT_TOKEN = "ho"
+
+# Add metadata for the frontend compiler to know what imports are needed
+PREFAB_METADATA = {
+    "imports": [
+        "import { Link } from 'react-router-dom';"
+    ]
+}

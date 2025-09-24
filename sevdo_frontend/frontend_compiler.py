@@ -261,7 +261,8 @@ def _jsx_for_token(
     token = token.strip()
 
     if token in COMPONENT_REGISTRY:
-        return COMPONENT_REGISTRY[token](args, props)
+        jsx_output = COMPONENT_REGISTRY[token](args, props)
+        return jsx_output
 
     # h — Header
     if token == "h":
@@ -382,6 +383,44 @@ def dsl_to_jsx(
     if api_props is None:
         api_props = {}
 
+    nodes = parse_dsl(dsl_source)
+
+    # Collect metadata from all prefabs used
+    all_imports = set()
+    all_state_vars = []
+    all_effects = []
+    all_hooks = []
+
+    def collect_prefab_metadata(node: Node):
+        """Recursively collect metadata from prefabs"""
+        # Check if this token has metadata
+        metadata = get_prefab_metadata(node.token)
+        if metadata:
+            # Add imports
+            if "imports" in metadata:
+                all_imports.update(metadata["imports"])
+
+            # Add state variables
+            if "state_variables" in metadata:
+                all_state_vars.extend(metadata["state_variables"])
+
+            # Add effects
+            if "effects" in metadata:
+                all_effects.extend(metadata["effects"])
+
+            # Add hooks
+            if "hooks" in metadata:
+                all_hooks.extend(metadata["hooks"])
+
+        # Recursively check children
+        for child in node.children:
+            collect_prefab_metadata(child)
+
+    # Collect metadata from all nodes
+    for node in nodes:
+        collect_prefab_metadata(node)
+
+    # Standard JSX rendering for all components (no more complex detection)
     def render(node: Node, level: int = 1) -> str:
         indent = "      "  # 6 spaces for proper JSX indentation
 
@@ -413,45 +452,92 @@ def dsl_to_jsx(
                 render(child, level + 1) for child in node.children
             )
             return f"{indent}<form>\n{children_jsx}\n{indent}</form>"
-        # Leaf - pass effective_props instead of node.props
-        return f"{indent}" + _jsx_for_token(node.token, node.args, effective_props)
 
-    nodes = parse_dsl(dsl_source)
+        # Standard JSX fragment rendering
+        jsx_result = _jsx_for_token(node.token, node.args, effective_props)
+
+        return f"{indent}" + jsx_result
+
+    # Standard JSX rendering
     inner = "\n".join(render(n) for n in nodes) if nodes else ""
 
     if not include_imports:
         return inner
 
-    # Check if we need React Router imports
-    needs_link_import = "Link to=" in inner
-    needs_navigate_import = "navigate(" in inner
+    # Convert collected imports to import statements
+    imports = []
 
-    # Proper JSX formatting with correct indentation
-    imports = ["import React from 'react';"]
+    # Group imports by module
+    react_imports = []
+    react_router_imports = []
+    other_imports = []
 
-    # Add React Router imports if needed
-    router_imports = []
-    if needs_link_import:
-        router_imports.append("Link")
-    if needs_navigate_import:
-        router_imports.append("useNavigate")
+    for imp in all_imports:
+        if imp.startswith("import React"):
+            react_imports.append(imp)
+        elif imp.startswith("import {") and "react-router-dom" in imp:
+            react_router_imports.append(imp)
+        else:
+            other_imports.append(imp)
 
-    if router_imports:
-        imports.append(
-            f"import {{ {', '.join(router_imports)} }} from 'react-router-dom';"
-        )
+    # Add React import (consolidate multiple React imports)
+    if react_imports:
+        # Extract hook names from all React imports
+        all_hooks_set = set()
+        for imp in react_imports:
+            if "{" in imp and "}" in imp:
+                hooks_part = imp.split("{")[1].split("}")[0]
+                hooks = [h.strip() for h in hooks_part.split(",") if h.strip()]
+                all_hooks_set.update(hooks)
+
+        # Determine which standard hooks are needed based on state/effects
+        needed_hooks = []
+        if all_state_vars or all_effects:  # If there are state vars or effects, include useState/useEffect
+            if "useState" in all_hooks_set or all_state_vars:
+                needed_hooks.append("useState")
+            if "useEffect" in all_hooks_set or all_effects:
+                needed_hooks.append("useEffect")
+
+        # Combine with other hooks, but filter out standard ones from injection
+        filtered_hooks = [hook for hook in all_hooks_set if hook not in ["useState", "useEffect"]]
+        all_import_hooks = sorted(set(filtered_hooks + needed_hooks))
+
+        if all_import_hooks:
+            hooks_str = ", ".join(all_import_hooks)
+            imports.append(f"import React, {{ {hooks_str} }} from 'react';")
+        else:
+            imports.append("import React from 'react';")
+    else:
+        imports.append("import React from 'react';")
+
+    # Add React Router imports
+    for imp in react_router_imports:
+        imports.append(imp)
+
+    # Add other imports (like axios)
+    for imp in other_imports:
+        imports.append(imp)
 
     header = "\n".join(imports) + "\n\n"
 
-    # Add useNavigate hook if needed
-    hook_setup = ""
-    if needs_navigate_import:
-        hook_setup = "  const navigate = useNavigate();\n\n"
+    # Add hooks, state variables and effects to component body
+    hooks_and_state = ""
+    if all_hooks:
+        # Filter out standard React hooks to avoid redundant/invalid injection
+        filtered_hooks = [hook for hook in set(all_hooks) if hook not in ["useState", "useEffect"]]
+        if filtered_hooks:
+            hooks_and_state += "\n".join(f"  {hook}" for hook in filtered_hooks) + "\n\n"
+
+    if all_state_vars:
+        hooks_and_state += "\n".join(f"  {var}" for var in all_state_vars) + "\n\n"
+
+    if all_effects:
+        hooks_and_state += "\n".join(f"  {effect}" for effect in all_effects) + "\n\n"
 
     component = (
         header
         + f"export default function {component_name}() {{\n"
-        + hook_setup
+        + hooks_and_state
         + f"  return (\n"
         + f"    <>\n{inner}\n    </>\n"
         + f"  );\n"
@@ -915,10 +1001,10 @@ async def fe_compile_batch_api(body: FEBatchCompileRequest):
             if success:
                 ok += 1
 
-            return {
-                "results": results,
-                "totals": {"ok": ok, "failed": len(results) - ok},
-            }
+    return {
+        "results": results,
+        "totals": {"ok": ok, "failed": len(results) - ok},
+    }
 
 
 class FEBatchDecompileJob(BaseModel):
@@ -1010,4 +1096,4 @@ if __name__ == "__main__":
     import uvicorn
 
     print("Starting SEVDO Frontend Service...")
-    uvicorn.run(app, host="0.0.0.0", port=8002, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8003, log_level="info")

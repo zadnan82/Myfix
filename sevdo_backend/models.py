@@ -145,10 +145,29 @@ class EmailLogDB(Base):
 
 
 # ============================================================================
+# NEWSLETTER MODELS
+# ============================================================================
+
+
+class NewsletterSubscriberDB(Base):
+    __tablename__ = "newsletter_subscribers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=True)
+    subscribed_at = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+    unsubscribe_token = Column(String, unique=True, nullable=True)
+
+    def __repr__(self):
+        return f"<NewsletterSubscriber(id={self.id}, email='{self.email}', active={self.is_active})>"
+
+
+# ============================================================================
 # MODEL REGISTRY FOR DYNAMIC LOADING
 # ============================================================================
 
-# Export all models for easy importing
+
 __all__ = [
     "Base",
     "UserDB",
@@ -160,4 +179,5 @@ __all__ = [
     "ChatRoomDB",
     "ChatMessageDB",
     "EmailLogDB",
+    "NewsletterSubscriberDB",
 ]

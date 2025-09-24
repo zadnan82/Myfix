@@ -18,6 +18,17 @@ def render_prefab(args, props):
     )
     testimonial_author = props.get("testimonialAuthor", "Sarah Chen, CEO at TechCorp")
 
+    # Navigation configuration from template.json (MOVED EARLY)
+    navigation = props.get("navigation", {})
+    nav_actions = navigation.get("actions", {})
+    nav_routes = navigation.get("routes", {})
+
+    # Default navigation fallbacks
+    primary_link = nav_actions.get("cta_primary", nav_routes.get("blog", "/blog"))
+    secondary_link = nav_actions.get(
+        "cta_secondary", nav_routes.get("contact", "/contact")
+    )
+
     # Check if content comes from DSL (.s file) or props
     has_dsl_content = False
 
@@ -99,9 +110,9 @@ def render_prefab(args, props):
         <h2 className="text-4xl font-bold text-gray-900 mb-6">{title}</h2>
         <p className="text-xl text-gray-600 mb-8">{subtitle}</p>
         <div className="flex flex-col sm:flex-row gap-4">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+          <Link to="{primary_link}" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
             {primary_button}
-          </button>
+          </Link>
         </div>
       </div>
       <div className="relative">
@@ -120,9 +131,9 @@ def render_prefab(args, props):
   <div className="max-w-3xl mx-auto px-4 text-center">
     <h2 className="text-3xl font-bold text-gray-900 mb-4">{title}</h2>
     <p className="text-lg text-gray-600 mb-8">{subtitle}</p>
-    <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors duration-200">
+    <Link to="{primary_link}" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors duration-200">
       {primary_button}
-    </button>
+    </Link>
   </div>
 </section>"""
         else:  # centered or default
@@ -131,12 +142,23 @@ def render_prefab(args, props):
     <h2 className="text-4xl md:text-5xl font-bold mb-6">{title}</h2>
     <p className="text-xl text-blue-100 mb-8">{subtitle}</p>
     <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-      <button className="bg-white text-blue-600 hover:bg-blue-50 font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+      <Link to="{primary_link}" className="bg-white text-blue-600 hover:bg-blue-50 font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
         {primary_button}
-      </button>
+      </Link>
     </div>
   </div>
 </section>"""
+
+    # Navigation configuration from template.json
+    navigation = props.get("navigation", {})
+    nav_actions = navigation.get("actions", {})
+    nav_routes = navigation.get("routes", {})
+
+    # Default navigation fallbacks
+    primary_link = nav_actions.get("cta_primary", nav_routes.get("blog", "/blog"))
+    secondary_link = nav_actions.get(
+        "cta_secondary", nav_routes.get("contact", "/contact")
+    )
 
     # Otherwise show full CTA with all features (urgency, testimonials, etc.)
     urgency_html = ""
@@ -172,12 +194,12 @@ def render_prefab(args, props):
     <p className="text-lg text-blue-100 mb-8">{description}</p>
     {urgency_html}
     <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-      <button className="bg-white text-blue-600 hover:bg-blue-50 font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+      <Link to="{primary_link}" className="bg-white text-blue-600 hover:bg-blue-50 font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
         {primary_button}
-      </button>
-      <button className="border-2 border-white text-white hover:bg-white hover:text-blue-600 font-semibold px-8 py-4 rounded-xl text-lg transition-all duration-300">
+      </Link>
+      <Link to="{secondary_link}" className="border-2 border-white text-white hover:bg-white hover:text-blue-600 font-semibold px-8 py-4 rounded-xl text-lg transition-all duration-300">
         {secondary_button}
-      </button>
+      </Link>
     </div>
     <div className="bg-white bg-opacity-10 rounded-2xl p-6 backdrop-blur-sm">
       <p className="text-blue-100 italic mb-3">"{testimonial}"</p>
@@ -191,9 +213,9 @@ def render_prefab(args, props):
   <div className="max-w-3xl mx-auto px-4 text-center">
     <h2 className="text-3xl font-bold text-gray-900 mb-4">{title}</h2>
     <p className="text-lg text-gray-600 mb-8">{subtitle}</p>
-    <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors duration-200">
+    <Link to="{primary_link}" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors duration-200">
       {primary_button}
-    </button>
+    </Link>
   </div>
 </section>"""
 
@@ -207,12 +229,12 @@ def render_prefab(args, props):
         <p className="text-lg text-gray-600 mb-8">{description}</p>
         {urgency_html}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+          <Link to="{primary_link}" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
             {primary_button}
-          </button>
-          <button className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold px-8 py-4 rounded-xl text-lg transition-all duration-300">
+          </Link>
+          <Link to="{secondary_link}" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold px-8 py-4 rounded-xl text-lg transition-all duration-300">
             {secondary_button}
-          </button>
+          </Link>
         </div>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
           <p className="text-gray-700 italic mb-3">"{testimonial}"</p>
@@ -275,3 +297,10 @@ def render_prefab(args, props):
 
 # Register with token "cta"
 COMPONENT_TOKEN = "cta"
+
+# Add metadata for the frontend compiler to know what imports are needed
+PREFAB_METADATA = {
+    "imports": [
+        "import { Link } from 'react-router-dom';"
+    ]
+}
