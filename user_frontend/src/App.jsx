@@ -1,4 +1,4 @@
-// user_frontend/src/App.jsx - UPDATED WITH LIVE PREVIEW ROUTE
+// user_frontend/src/App.jsx - UPDATED WITH REAL-TIME AI EDITOR INTEGRATION
 
 import React, { useEffect, useState } from 'react';
 import { Wifi, WifiOff } from 'lucide-react';
@@ -15,26 +15,26 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
-import TemplateLivePreviewPage from './pages/projects/TemplateLivePreviewPage'; // NEW IMPORT
-import TemplateBrowserPage from './pages/projects/TemplateBrowserPage'; // NEW IMPORT
+import TemplateLivePreviewPage from './pages/projects/TemplateLivePreviewPage'; 
 import LLMEditorPage from './pages/LLMEditor';
 
 // Services
 import { apiClient } from './services/api';
+import TemplateBrowserPage from './pages/projects/TemplateBrowserPage';
 
-// Route constants - UPDATED
+// Route constants - NO CHANGES NEEDED
 export const ROUTES = {
   LOGIN: '/login',
   REGISTER: '/register',
   FORGOT_PASSWORD: '/forgot-password',
   DASHBOARD: '/dashboard',
-  TEMPLATE_BROWSER: '/templates', // NEW ROUTE
-  TEMPLATE_LIVE_PREVIEW: '/templates/:templateId/live-preview', // NEW ROUTE
+  TEMPLATE_BROWSER: '/templates',
+  TEMPLATE_LIVE_PREVIEW: '/templates/:templateId/live-preview',
   LLM_EDITOR: '/llm-editor',
   HOME: '/'
 };
 
-// Browser history-based routing hook
+// Browser history-based routing hook - NO CHANGES NEEDED
 const useBrowserRouter = () => {
   const [currentPath, setCurrentPath] = useState(() => {
     const path = window.location.pathname;
@@ -87,17 +87,14 @@ const useBrowserRouter = () => {
   };
 };
 
-// Route matcher utility - ENHANCED FOR DYNAMIC ROUTES
+// Route matcher utility - NO CHANGES NEEDED
 const matchRoute = (currentPath, routePath) => {
-  // Exact match for simple routes
   if (currentPath === routePath) return { match: true, params: {} };
   
-  // Handle root path
   if (currentPath === '/' || currentPath === '') {
     return { match: routePath === ROUTES.HOME, params: {} };
   }
   
-  // Handle dynamic routes
   const currentSegments = currentPath.split('/').filter(Boolean);
   const routeSegments = routePath.split('/').filter(Boolean);
   
@@ -111,7 +108,6 @@ const matchRoute = (currentPath, routePath) => {
     const currentSegment = currentSegments[i];
     
     if (routeSegment.startsWith(':')) {
-      // Dynamic segment
       params[routeSegment.slice(1)] = currentSegment;
     } else if (routeSegment !== currentSegment) {
       return { match: false, params: {} };
@@ -121,7 +117,7 @@ const matchRoute = (currentPath, routePath) => {
   return { match: true, params };
 };
 
-// 404 Not Found component
+// 404 Not Found component - NO CHANGES NEEDED
 const NotFoundPage = ({ onNavigateHome }) => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
     <div className="max-w-md w-full text-center">
@@ -143,7 +139,7 @@ const NotFoundPage = ({ onNavigateHome }) => (
   </div>
 );
 
-// Offline detection component
+// Offline detection component - NO CHANGES NEEDED
 const OfflineIndicator = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -174,18 +170,16 @@ const OfflineIndicator = () => {
   );
 };
 
-// Connection status component
+// Connection status component - NO CHANGES NEEDED
 const ConnectionStatus = () => {
-  // Disable in development since you're running locally
   if (process.env.NODE_ENV === 'development') {
     return null;
   }
   
-  // Production version would go here
   return null;
 };
 
-// Main Router Component (inside AuthProvider) - UPDATED WITH NEW ROUTE
+// Main Router Component - ONLY MINOR UPDATES NEEDED
 const MainRouter = () => { 
   const { isAuthenticated, isLoading, isError, error, retry, logout } = useAuth();
   const { currentPath, navigate, navigateWithQuery, searchParams } = useBrowserRouter();
@@ -193,47 +187,40 @@ const MainRouter = () => {
   const handleLogout = async () => {
     try {
       await logout();
-      // Navigate to login after successful logout
       navigate(ROUTES.LOGIN, true);
     } catch (error) {
       console.error('Logout failed:', error);
-      // Still navigate to login even if logout fails
       navigate(ROUTES.LOGIN, true);
     }
   };
 
-  // Route protection and redirection logic - UPDATED
+  // Route protection and redirection logic - NO CHANGES NEEDED
   useEffect(() => {
     if (isLoading) return;
 
     const publicRoutes = [ROUTES.LOGIN, ROUTES.REGISTER, ROUTES.FORGOT_PASSWORD];
     const protectedRoutes = [ROUTES.DASHBOARD, ROUTES.TEMPLATE_BROWSER, ROUTES.TEMPLATE_LIVE_PREVIEW, ROUTES.LLM_EDITOR];
     
-    // Check if current path matches any known route
     const allRoutes = [...publicRoutes, ...protectedRoutes, ROUTES.HOME];
     const currentRouteMatch = allRoutes.some(route => matchRoute(currentPath, route).match);
 
-    // Handle unknown routes (404)
     if (!currentRouteMatch && currentPath !== '/') {
       console.log('Unknown route, showing 404');
       return;
     }
 
-    // Handle root path
     if (currentPath === '/' || currentPath === '') {
       const defaultRoute = isAuthenticated ? ROUTES.DASHBOARD : ROUTES.LOGIN;
       navigate(defaultRoute, true);
       return;
     }
 
-    // Redirect unauthenticated users from protected routes
     if (!isAuthenticated && protectedRoutes.some(route => matchRoute(currentPath, route).match)) {
       console.log('Not authenticated, redirecting to login');
       navigateWithQuery(ROUTES.LOGIN, { redirect: currentPath }, true);
       return;
     }
 
-    // Redirect authenticated users from auth pages
     if (isAuthenticated && publicRoutes.some(route => matchRoute(currentPath, route).match)) {
       console.log('Already authenticated, redirecting to dashboard');
       
@@ -247,7 +234,7 @@ const MainRouter = () => {
     }
   }, [isAuthenticated, isLoading, currentPath, navigate, navigateWithQuery, searchParams]);
 
-  // Navigation handlers
+  // Navigation handlers - NO CHANGES NEEDED
   const handleSwitchToLogin = () => navigate(ROUTES.LOGIN);
   const handleSwitchToRegister = () => navigate(ROUTES.REGISTER);
   const handleSwitchToForgot = () => navigate(ROUTES.FORGOT_PASSWORD);
@@ -265,39 +252,36 @@ const MainRouter = () => {
 
   const handleRegisterSuccess = () => navigate(ROUTES.LOGIN);
 
-  // NEW: Navigation handler for live preview
   const handleNavigateLivePreview = (template) => {
     const previewPath = `/templates/${template.id}/live-preview`;
     navigate(previewPath);
   };
 
-  // NEW: Navigation handler for template browser
   const handleNavigateTemplateBrowser = () => {
     navigate(ROUTES.TEMPLATE_BROWSER);
   };
 
-  // NEW: Navigation handler to go back to dashboard
   const handleBackToDashboard = () => {
     navigate(ROUTES.DASHBOARD);
   };
 
-  // Loading state
+  // Loading state - NO CHANGES NEEDED
   if (isLoading) {
     return <LoadingScreen message="Initializing..." />;
   }
 
-  // Error state
+  // Error state - NO CHANGES NEEDED
   if (isError) {
     return <ErrorScreen error={error} onRetry={retry} />;
   }
 
-  // Route matching and rendering - UPDATED WITH NEW ROUTE
+  // Route matching and rendering - NO CHANGES NEEDED
   const loginMatch = matchRoute(currentPath, ROUTES.LOGIN);
   const registerMatch = matchRoute(currentPath, ROUTES.REGISTER);
   const forgotMatch = matchRoute(currentPath, ROUTES.FORGOT_PASSWORD);
   const dashboardMatch = matchRoute(currentPath, ROUTES.DASHBOARD);
-  const templateBrowserMatch = matchRoute(currentPath, ROUTES.TEMPLATE_BROWSER); // NEW
-  const livePreviewMatch = matchRoute(currentPath, ROUTES.TEMPLATE_LIVE_PREVIEW); // NEW
+  const templateBrowserMatch = matchRoute(currentPath, ROUTES.TEMPLATE_BROWSER);
+  const livePreviewMatch = matchRoute(currentPath, ROUTES.TEMPLATE_LIVE_PREVIEW);
   const llmEditorMatch = matchRoute(currentPath, ROUTES.LLM_EDITOR);
 
   if (loginMatch.match) {
@@ -327,48 +311,46 @@ const MainRouter = () => {
     );
   }
 
-  
   if (dashboardMatch.match) {
     return (
       <DashboardPage 
         onLogout={handleLogout}
-        onNavigateLivePreview={handleNavigateLivePreview} // Pass navigation handler
-        onNavigateTemplateBrowser={handleNavigateTemplateBrowser} // Pass template browser handler
+        onNavigateLivePreview={handleNavigateLivePreview}
+        onNavigateTemplateBrowser={handleNavigateTemplateBrowser}
       />
     );
   }
 
+  // THE MAIN CHANGE: TemplateBrowserPage now includes the real-time AI editor
   if (templateBrowserMatch.match) {
     return (
       <TemplateBrowserPage
         onBack={() => navigate(ROUTES.DASHBOARD)}
         onSelectTemplate={(template) => {
-          // Handle template selection - could navigate to project creation
           console.log('Template selected from browser:', template);
-          // For now, go back to dashboard
           navigate(ROUTES.DASHBOARD);
         }}
         navigate={navigate}
+        // The real-time AI editor is already integrated into TemplateBrowserPage
+        // No additional props needed - it will show automatically after generation
       />
     );
   }
 
   if (livePreviewMatch.match) {
-  const { templateId } = livePreviewMatch.params;
-  
-  return (
-    <TemplateLivePreviewPage
-      templateId={templateId}
-      onBack={() => navigate(ROUTES.DASHBOARD)}
-      onSelectTemplate={(template) => {
-        // Handle template selection
-        console.log('Template selected from live preview:', template);
-        // Navigate to project creation with this template
-        navigate(`/projects/create?template=${template.id}`);
-      }}
-    />
-  );
-}
+    const { templateId } = livePreviewMatch.params;
+    
+    return (
+      <TemplateLivePreviewPage
+        templateId={templateId}
+        onBack={() => navigate(ROUTES.DASHBOARD)}
+        onSelectTemplate={(template) => {
+          console.log('Template selected from live preview:', template);
+          navigate(`/projects/create?template=${template.id}`);
+        }}
+      />
+    );
+  }
 
   if (llmEditorMatch.match) {
     return (
@@ -378,18 +360,15 @@ const MainRouter = () => {
     );
   }
 
-  // Handle root path during loading/auth check
   if (currentPath === '/' || currentPath === '') {
     return <LoadingScreen message="Redirecting..." />;
   }
 
-  // 404 for unknown routes
   return <NotFoundPage onNavigateHome={handleNavigateHome} />;
 };
 
-// Root App component
+// Root App component - NO CHANGES NEEDED
 const App = () => {
-  // Global error handler for unhandled promise rejections
   useEffect(() => {
     const handleUnhandledRejection = (event) => {
       console.error('Unhandled promise rejection:', event.reason);
@@ -409,7 +388,6 @@ const App = () => {
     };
   }, []);
 
-  // Performance monitoring
   useEffect(() => {
     if (typeof window === 'undefined' || !('performance' in window)) return;
 
