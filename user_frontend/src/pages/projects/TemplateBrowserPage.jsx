@@ -1,4 +1,3 @@
-// Complete TemplateBrowserPage.jsx with diagnostic tools and fixes
 import React, { useEffect, useRef, useState } from 'react';
 import apiClient from '../../services/api';
 
@@ -9,8 +8,8 @@ const TemplateBrowserPage = () => {
   const [result, setResult] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-const [editPrompt, setEditPrompt] = useState('');
-const [editHistory, setEditHistory] = useState([]);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [editHistory, setEditHistory] = useState([]);
   const [customizations, setCustomizations] = useState({
     company_name: '',
     primary_color: '#3b82f6',
@@ -18,6 +17,8 @@ const [editHistory, setEditHistory] = useState([]);
   });
   const wsRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [generationId, setGenerationId] = useState(null);
+  const [pollingInterval, setPollingInterval] = useState(null);
 
   const templateOptions = [
     { 
@@ -59,12 +60,10 @@ const [editHistory, setEditHistory] = useState([]);
 
   const selectedTemplate = templateOptions.find(t => t.id === templateType);
 
-  // Connect to your existing notifications WebSocket
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
     if (!token) return;
 
-    // Use your existing notifications endpoint
     const wsUrl = `ws://localhost:8000/api/v1/ws/notifications?token=${token}`;
     wsRef.current = new WebSocket(wsUrl);
 
@@ -78,7 +77,6 @@ const [editHistory, setEditHistory] = useState([]);
         const data = JSON.parse(event.data);
         console.log('WebSocket message received:', data);
 
-        // Handle preview updates
         if (data.type === 'preview_update' && result?.generation_id === data.data.generation_id) {
           handlePreviewUpdate(data.data);
         }
@@ -97,169 +95,190 @@ const [editHistory, setEditHistory] = useState([]);
         wsRef.current.close();
       }
     };
-  }, []);
+  }, [result]);
 
- const openBuiltPreview = () => {
-  if (!result || !result.generation_id) {
-    showNotification('No generated website to preview', 'error');
-    return;
-  }
-
-  const builtUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/preview-built/${result.generation_id}/`; // Add trailing slash
-  console.log('🌐 Opening built preview:', builtUrl);
-  window.open(builtUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
-  showNotification('Opening built website preview', 'info');
-};
-
-const [generationId, setGenerationId] = useState(null);
-const [pollingInterval, setPollingInterval] = useState(null);
-
-const generateWebsite = async () => {
-  if (!projectName.trim()) {
-    alert('Please enter a project name');
-    return;
-  }
-
-  setGenerating(true);
-  setResult(null);
-
-  try {
-    console.log(`🚀 Starting async generation of ${templateType} with name: ${projectName}`);
+  const handlePreviewUpdate = (data) => {
+    console.log('Handling preview update:', data);
     
-    const requestData = {
-      project_name: projectName,
-      customizations: {
-        company_name: customizations.company_name || projectName,
-        primary_color: customizations.primary_color,
-        description: customizations.description
-      },
-      include_docker: true,
-      include_readme: true
-    };
-
-    // Start async generation
-    const response = await apiClient.post(
-      `/api/v1/templates/${templateType}/generate`,
-      requestData
-    );
-
-    console.log('✅ Generation started:', response);
-    
-    if (response.generation_id) {
-      setGenerationId(response.generation_id);
-      showNotification('Generation started! Checking progress...', 'info');
+    if (data.status === 'building') {
+      showNotification(`${data.message} (${data.progress}%)`, 'info');
+      setIsEditing(true);
+    } 
+    else if (data.status === 'completed') {
+      showNotification(data.message, 'success');
+      setIsEditing(false);
       
-      // Start polling for status
-      startStatusPolling(response.generation_id);
-    } else {
-      throw new Error('No generation ID returned');
+      if (window.previewWindow && !window.previewWindow.closed) {
+        setTimeout(() => {
+          window.previewWindow.location.reload();
+          showNotification('Preview refreshed with your changes!', 'success');
+        }, 500);
+      }
+      
+      setEditHistory(prev => [...prev, {
+        instruction: data.changes?.join(', ') || 'Build completed',
+        timestamp: data.timestamp,
+        success: true,
+        changes: data.changes || []
+      }]);
+    } 
+    else if (data.status === 'error') {
+      showNotification(`Build failed: ${data.message}`, 'error');
+      setIsEditing(false);
+      
+      setEditHistory(prev => [...prev, {
+        instruction: 'Build failed',
+        timestamp: data.timestamp,
+        success: false,
+        error: data.message
+      }]);
+    }
+  };
+
+  const openBuiltPreview = () => {
+    if (!result || !result.generation_id) {
+      showNotification('No generated website to preview', 'error');
+      return;
     }
 
-  } catch (error) {
-    console.error('❌ Generation start failed:', error);
-    const errorMessage = error.response?.data?.detail || error.message || 'Generation failed to start';
-    
-    setResult({
-      success: false,
-      message: errorMessage,
-      error_details: error.response?.data || error
-    });
+    const builtUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/preview-built/${result.generation_id}/`;
+    console.log('Opening built preview:', builtUrl);
+    window.previewWindow = window.open(builtUrl, `preview_${result.generation_id}`, 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    showNotification('Opening built website preview', 'info');
+  };
 
-    showNotification('Generation failed to start: ' + errorMessage, 'error');
-    setGenerating(false);
-  }
-};
+  const generateWebsite = async () => {
+    if (!projectName.trim()) {
+      alert('Please enter a project name');
+      return;
+    }
 
-const startStatusPolling = (genId) => {
-  // Clear any existing polling
-  if (pollingInterval) {
-    clearInterval(pollingInterval);
-  }
-  
-  const interval = setInterval(async () => {
+    setGenerating(true);
+    setResult(null);
+
     try {
-      const statusResponse = await apiClient.get(
-        `/api/v1/templates/${templateType}/status/${genId}`
+      console.log(`Starting async generation of ${templateType} with name: ${projectName}`);
+      
+      const requestData = {
+        project_name: projectName,
+        customizations: {
+          company_name: customizations.company_name || projectName,
+          primary_color: customizations.primary_color,
+          description: customizations.description
+        },
+        include_docker: true,
+        include_readme: true
+      };
+
+      const response = await apiClient.post(
+        `/api/v1/templates/${templateType}/generate`,
+        requestData
       );
-      
-      console.log('📊 Status update:', statusResponse);
-      
-      if (statusResponse.status === 'completed') {
-        // Generation completed successfully
-        clearInterval(interval);
-        setPollingInterval(null);
-        setGenerating(false);
-        
-        setResult({
-          success: true,
-          message: statusResponse.message,
-          files_count: statusResponse.file_count,
-          project_name: statusResponse.project_name,
-          generation_id: genId,
-          template_type: templateType,
-          project_id: statusResponse.project_id,
-          generated_at: statusResponse.completed_at,
-          raw_response: statusResponse
-        });
 
-        showNotification('Website generated successfully!', 'success');
-        
-      } else if (statusResponse.status === 'failed') {
-        // Generation failed
-        clearInterval(interval);
-        setPollingInterval(null);
-        setGenerating(false);
-        
-        setResult({
-          success: false,
-          message: statusResponse.message,
-          error_details: statusResponse.error
-        });
-
-        showNotification('Generation failed: ' + statusResponse.message, 'error');
-        
+      console.log('Generation started:', response);
+      
+      if (response.generation_id) {
+        setGenerationId(response.generation_id);
+        showNotification('Generation started! Checking progress...', 'info');
+        startStatusPolling(response.generation_id);
       } else {
-        // Still in progress - update progress display
-        console.log(`📈 Progress: ${statusResponse.progress}% - ${statusResponse.message}`);
-        // You can add progress bar UI here
+        throw new Error('No generation ID returned');
       }
-      
-    } catch (error) {
-      console.error('❌ Status check failed:', error);
-      // Continue polling on error unless it's a 404
-      if (error.response?.status === 404) {
-        clearInterval(interval);
-        setPollingInterval(null);
-        setGenerating(false);
-        showNotification('Generation session expired', 'error');
-      }
-    }
-  }, 3000); // Check every 3 seconds
-  
-  setPollingInterval(interval);
-  
-  // Auto-stop polling after 15 minutes max
-  setTimeout(() => {
-    if (interval) {
-      clearInterval(interval);
-      setPollingInterval(null);
-      setGenerating(false);
-      showNotification('Generation timed out after 15 minutes', 'error');
-    }
-  }, 15 * 60 * 1000);
-};
 
-// Clean up polling on component unmount
-React.useEffect(() => {
-  return () => {
+    } catch (error) {
+      console.error('Generation start failed:', error);
+      const errorMessage = error.response?.data?.detail || error.message || 'Generation failed to start';
+      
+      setResult({
+        success: false,
+        message: errorMessage,
+        error_details: error.response?.data || error
+      });
+
+      showNotification('Generation failed to start: ' + errorMessage, 'error');
+      setGenerating(false);
+    }
+  };
+
+  const startStatusPolling = (genId) => {
     if (pollingInterval) {
       clearInterval(pollingInterval);
     }
+    
+    const interval = setInterval(async () => {
+      try {
+        const statusResponse = await apiClient.get(
+          `/api/v1/templates/${templateType}/status/${genId}`
+        );
+        
+        console.log('Status update:', statusResponse);
+        
+        if (statusResponse.status === 'completed') {
+          clearInterval(interval);
+          setPollingInterval(null);
+          setGenerating(false);
+          
+          setResult({
+            success: true,
+            message: statusResponse.message,
+            files_count: statusResponse.file_count,
+            project_name: statusResponse.project_name,
+            generation_id: genId,
+            template_type: templateType,
+            project_id: statusResponse.project_id,
+            generated_at: statusResponse.completed_at,
+            raw_response: statusResponse
+          });
+
+          showNotification('Website generated successfully!', 'success');
+          
+        } else if (statusResponse.status === 'failed') {
+          clearInterval(interval);
+          setPollingInterval(null);
+          setGenerating(false);
+          
+          setResult({
+            success: false,
+            message: statusResponse.message,
+            error_details: statusResponse.error
+          });
+
+          showNotification('Generation failed: ' + statusResponse.message, 'error');
+          
+        } else {
+          console.log(`Progress: ${statusResponse.progress}% - ${statusResponse.message}`);
+        }
+        
+      } catch (error) {
+        console.error('Status check failed:', error);
+        if (error.response?.status === 404) {
+          clearInterval(interval);
+          setPollingInterval(null);
+          setGenerating(false);
+          showNotification('Generation session expired', 'error');
+        }
+      }
+    }, 3000);
+    
+    setPollingInterval(interval);
+    
+    setTimeout(() => {
+      if (interval) {
+        clearInterval(interval);
+        setPollingInterval(null);
+        setGenerating(false);
+        showNotification('Generation timed out after 15 minutes', 'error');
+      }
+    }, 15 * 60 * 1000);
   };
-}, [pollingInterval]);
 
-
-
+  React.useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
 
   const downloadWebsite = async () => {
     if (!result || !result.generation_id) {
@@ -271,7 +290,7 @@ React.useEffect(() => {
       showNotification('Starting download...', 'info');
       
       const downloadUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/download-generated`;
-      console.log('📥 Downloading from:', downloadUrl);
+      console.log('Downloading from:', downloadUrl);
       
       const token = localStorage.getItem('auth_token');
       const response = await fetch(downloadUrl, {
@@ -296,331 +315,106 @@ React.useEffect(() => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      console.log('✅ Download completed');
+      console.log('Download completed');
       showNotification('Website downloaded successfully!', 'success');
       
     } catch (error) {
-      console.error('❌ Download failed:', error);
+      console.error('Download failed:', error);
       showNotification('Download failed: ' + error.message, 'error');
     }
   };
 
-  const handlePreviewUpdate = (data) => {
-    console.log('Handling preview update:', data);
-    
-    showNotification(data.message, 'success');
-    
-    // Auto-reload preview window if it's open
-    if (window.previewWindow && !window.previewWindow.closed) {
-      setTimeout(() => {
-        window.previewWindow.location.reload();
-        showNotification('Preview updated with your changes!', 'info');
-      }, 1000); // Small delay to ensure build is complete
+  const applyAIEdit = async () => {
+    if (!result || !result.generation_id || !editPrompt.trim()) {
+      showNotification('Please enter an editing instruction', 'error');
+      return;
     }
+
+    setIsEditing(true);
     
-    // Update edit history
-    setEditHistory(prev => [...prev, {
-      instruction: data.changes.join(', '),
-      timestamp: data.timestamp,
-      success: true,
-      changes: data.changes
-    }]);
+    try {
+      console.log(`Applying AI edit: ${editPrompt}`);
+      
+      const response = await apiClient.post('/api/v1/ai/change-project-from-description', {
+        description: editPrompt,
+        project_name: result.generation_id,
+      });
+
+      console.log('AI edit response:', response);
+      
+      const successCount = response.results?.filter(r => r.compilation?.success).length || 0;
+      const totalCount = response.results?.length || 0;
+      
+      if (successCount > 0) {
+        setEditHistory(prev => [...prev, {
+          instruction: editPrompt,
+          timestamp: new Date().toISOString(),
+          success: true,
+          status: 'completed',
+          summary: `${successCount}/${totalCount} changes applied`
+        }]);
+
+        setTimeout(() => {
+    showNotification('Build should be complete. Click Refresh Preview now!', 'success');
+  }, 30000); // 30 seconds
+        
+        setEditPrompt('');
+        showNotification(`Changes applied successfully! (${successCount}/${totalCount})`, 'success');
+        showNotification('Click "Refresh Preview" to see your changes', 'info');
+      } else {
+        throw new Error('No successful changes applied');
+      }
+      
+    } catch (error) {
+      console.error('AI edit failed:', error);
+      
+      setEditHistory(prev => [...prev, {
+        instruction: editPrompt,
+        timestamp: new Date().toISOString(),
+        success: false,
+        error: error.response?.data?.detail || error.message
+      }]);
+      
+      showNotification('Edit failed: ' + (error.response?.data?.detail || error.message), 'error');
+    } finally {
+      setIsEditing(false);
+    }
   };
 
-  // Track preview window reference
-  const openLivePreview = () => {
+  const refreshPreview = () => {
     if (!result || !result.generation_id) {
-      showNotification('No generated website to preview', 'error');
+      showNotification('No preview window to refresh', 'error');
       return;
     }
 
     const builtUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/preview-built/${result.generation_id}/`;
-    
-    // Store reference for live updates
-    window.previewWindow = window.open(
-      builtUrl, 
-      `preview_${result.generation_id}`, 
-      'width=1200,height=800,scrollbars=yes,resizable=yes'
-    );
-    
-    showNotification('Live preview opened!', 'success');
-  };
 
-  const applyAIEdit = async () => {
-  if (!result || !result.generation_id || !editPrompt.trim()) {
-    showNotification('Please enter an editing instruction', 'error');
-    return;
-  }
-
-  setIsEditing(true);
-  
-  try {
-    console.log(`🤖 Applying AI edit: ${editPrompt}`);
-    
-    const response = await apiClient.post('/api/v1/ai/change-project-from-description', {
-      description: editPrompt,
-      project_name: result.project_name,
-    });
-
-    console.log('✅ AI edit successful:', response);
-    
-    // Add to edit history
-    setEditHistory(prev => [...prev, {
-      instruction: editPrompt,
-      timestamp: new Date().toISOString(),
-      success: true
-    }]);
-    
-    setEditPrompt('');
-    showNotification('Website updated successfully!', 'success');
-    
-    // Optionally refresh the preview
-    // The preview should automatically show the updated version
-    
-  } catch (error) {
-    console.error('❌ AI edit failed:', error);
-    
-    setEditHistory(prev => [...prev, {
-      instruction: editPrompt,
-      timestamp: new Date().toISOString(),
-      success: false,
-      error: error.response?.data?.detail || error.message
-    }]);
-    
-    showNotification('Edit failed: ' + (error.response?.data?.detail || error.message), 'error');
-  } finally {
-    setIsEditing(false);
-  }
-};
-
-
-  const GenerationProgress = ({ generationId, templateType }) => {
-  const [status, setStatus] = useState(null);
-
-  React.useEffect(() => {
-    if (!generationId) return;
-
-    const interval = setInterval(async () => {
+    if (window.previewWindow && !window.previewWindow.closed) {
       try {
-        const response = await apiClient.get(`/api/v1/templates/${templateType}/status/${generationId}`);
-        setStatus(response);
-      } catch (error) {
-        console.error('Status update failed:', error);
-      }
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [generationId, templateType]);
-
-  if (!status) return null;
-
-  return (
-    <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
-      <div className="flex items-center mb-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mr-3"></div>
-        <h4 className="font-medium text-blue-800 text-lg">Generation Progress</h4>
-      </div>
-      
-      {/* Progress Bar */}
-      <div className="w-full bg-blue-200 rounded-full h-3 mb-4">
-        <div 
-          className="bg-blue-600 h-3 rounded-full transition-all duration-500"
-          style={{ width: `${status.progress || 0}%` }}
-        ></div>
-      </div>
-      
-      <div className="flex justify-between text-sm text-blue-700 mb-3">
-        <span>{status.progress || 0}% Complete</span>
-        <span>Status: {status.status}</span>
-      </div>
-      
-      <p className="text-sm text-blue-600">{status.message}</p>
-      
-      {status.status === 'generating' && (
-        <div className="mt-4 space-y-2 text-xs text-blue-600">
-          <div className="flex items-center">
-            <div className="animate-pulse w-2 h-2 bg-blue-400 rounded-full mr-3"></div>
-            This may take 5-10 minutes for npm install and build
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-  const startLivePreview = async () => {
-    if (!result || !result.generation_id) {
-      showNotification('No generated website to preview', 'error');
-      return;
-    }
-
-    if (result.project_id && result.project_id !== 'undefined' && result.project_id !== null) {
-      try {
-        console.log('🔄 Attempting preview manager with project_id:', result.project_id);
-        showNotification('Starting preview manager...', 'info');
-        
-        const response = await apiClient.post(
-          `/api/v1/projects/${result.project_id}/preview`
+        // Use postMessage to trigger refresh (cross-origin safe)
+        // Or just reopen the window with the same URL to force refresh
+        window.previewWindow.location.href = builtUrl;
+        showNotification('Preview refreshed successfully!', 'success');
+      } catch (e) {
+        console.error('Failed to refresh preview:', e);
+        // If that fails, close and reopen
+        window.previewWindow.close();
+        window.previewWindow = window.open(
+          builtUrl, 
+          `preview_${result.generation_id}`, 
+          'width=1200,height=800,scrollbars=yes,resizable=yes'
         );
-        
-        console.log('✅ Preview manager response:', response);
-        
-        if (response.preview_url) {
-          window.open(response.preview_url, '_blank');
-          showNotification('Preview manager started successfully!', 'success');
-          return;
-        }
-        
-      } catch (error) {
-        console.error('⚠️ Preview manager failed, falling back to direct preview:', error);
-        showNotification('Preview manager failed, using direct preview', 'warning');
+        showNotification('Preview window reopened', 'success');
       }
+    } else {
+      // No preview window open - open a new one
+      window.previewWindow = window.open(
+        builtUrl, 
+        `preview_${result.generation_id}`, 
+        'width=1200,height=800,scrollbars=yes,resizable=yes'
+      );
+      showNotification('Preview window opened', 'success');
     }
-
-    console.log('🌐 Using direct preview fallback');
-    const liveUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/live/${result.generation_id}`;
-    console.log('🌐 Opening direct preview:', liveUrl);
-    window.open(liveUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
-    showNotification('Opening direct live preview', 'info');
-  };
-
-  const debugLivePreview = async () => {
-    if (!result || !result.generation_id) {
-      showNotification('No generation data to debug', 'error');
-      return;
-    }
-
-    try {
-      showNotification('Running preview diagnostics...', 'info');
-      
-      const liveUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/live/${result.generation_id}`;
-      console.log('🧪 Testing live preview URL:', liveUrl);
-      
-      const response = await fetch(liveUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        }
-      });
-      
-      console.log('🧪 Live preview response status:', response.status);
-      console.log('🧪 Live preview response headers:', Object.fromEntries(response.headers));
-      
-      if (response.ok) {
-        const content = await response.text();
-        console.log('🧪 Live preview HTML length:', content.length);
-        console.log('🧪 Live preview HTML preview:', content.substring(0, 500) + '...');
-        
-        const hasTitle = content.includes('<title>');
-        const hasBody = content.includes('<body>');
-        const hasContent = content.length > 1000;
-        const hasAssets = content.includes('.css') || content.includes('.js');
-        
-        console.log('🧪 HTML Analysis:', {
-          hasTitle,
-          hasBody, 
-          hasContent,
-          hasAssets,
-          contentLength: content.length
-        });
-        
-        showNotification(`HTML Response: ${content.length} chars, Title: ${hasTitle}, Body: ${hasBody}, Assets: ${hasAssets}`, 'info');
-        
-        if (!hasContent) {
-          showNotification('HTML content seems empty or minimal', 'warning');
-        }
-      } else {
-        const errorText = await response.text();
-        console.error('🧪 Live preview error:', errorText);
-        showNotification(`Live preview failed: ${response.status}`, 'error');
-      }
-
-      const statusUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/live-status/${result.generation_id}`;
-      console.log('🧪 Testing status URL:', statusUrl);
-      
-      const statusResponse = await apiClient.get(`/api/v1/templates/${result.template_type}/live-status/${result.generation_id}`);
-      console.log('🧪 Live status response:', statusResponse);
-      
-      showNotification('Diagnostics complete - check console for details', 'info');
-      
-    } catch (error) {
-      console.error('🧪 Diagnostic error:', error);
-      showNotification('Diagnostic failed: ' + error.message, 'error');
-    }
-  };
-
-  const testDirectUrls = () => {
-    if (!result || !result.generation_id) {
-      showNotification('No generation data to test', 'error');
-      return;
-    }
-
-    const baseUrl = apiClient.baseURL;
-    const urls = [
-      `${baseUrl}/api/v1/templates/${result.template_type}/live/${result.generation_id}`,
-      `${baseUrl}/api/v1/templates/${result.template_type}/live-status/${result.generation_id}`,
-      `${baseUrl}/api/v1/templates/${result.template_type}/preview`,
-      `${baseUrl}/api/v1/templates/${result.template_type}/download-generated`,
-    ];
-
-    console.log('🔗 Testing these URLs:');
-    urls.forEach((url, index) => {
-      console.log(`${index + 1}. ${url}`);
-    });
-
-    urls.forEach((url, index) => {
-      setTimeout(() => {
-        window.open(url, `_blank_test_${index}`);
-      }, index * 1000);
-    });
-
-    showNotification('Opened test URLs in new tabs', 'info');
-  };
-
-  const inspectGeneratedFiles = async () => {
-    if (!result || !result.generation_id) {
-      showNotification('No generation data to inspect', 'error');
-      return;
-    }
-
-    try {
-      showNotification('Inspecting generated files...', 'info');
-      
-      const downloadUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/download-generated`;
-      
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(downloadUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/zip'
-        }
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        console.log('📁 Generated files ZIP size:', blob.size, 'bytes');
-        showNotification(`Generated ZIP: ${Math.round(blob.size / 1024)}KB`, 'success');
-        
-        if (blob.size < 10000) {
-          showNotification('Generated files seem very small - possible generation issue', 'warning');
-        }
-      } else {
-        const error = await response.text();
-        console.error('📁 File inspection error:', error);
-        showNotification('Cannot inspect files: ' + response.status, 'error');
-      }
-      
-    } catch (error) {
-      console.error('📁 File inspection failed:', error);
-      showNotification('File inspection failed: ' + error.message, 'error');
-    }
-  };
-
-  const openDemo = () => {
-    const demoUrl = `${apiClient.baseURL}/api/v1/templates/${templateType}/live-preview`;
-    console.log('👀 Opening demo:', demoUrl);
-    window.open(demoUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
   };
 
   const showNotification = (message, type = 'info') => {
@@ -657,21 +451,6 @@ React.useEffect(() => {
       description: ''
     });
     showNotification('Form reset - ready for new generation', 'info');
-  };
-
-  const debugGenerationResult = () => {
-    if (result) {
-      console.log('🐛 DEBUG - Complete result object:', result);
-      console.log('🐛 DEBUG - project_id:', result.project_id, '(type:', typeof result.project_id, ')');
-      console.log('🐛 DEBUG - generation_id:', result.generation_id);
-      console.log('🐛 DEBUG - template_type:', result.template_type);
-      console.log('🐛 DEBUG - raw_response:', result.raw_response);
-      
-      showNotification('Debug info logged to console', 'info');
-    } else {
-      console.log('🐛 DEBUG - No result object available');
-      showNotification('No result to debug', 'warning');
-    }
   };
 
   return (
@@ -735,12 +514,6 @@ React.useEffect(() => {
                   </span>
                 ))}
               </div>
-              <button
-                onClick={openDemo}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
-              >
-                View Template Demo →
-              </button>
             </div>
           )}
 
@@ -840,10 +613,7 @@ React.useEffect(() => {
                       Generating Your Website...
                     </>
                   ) : (
-                    <>
-                      <span className="mr-2">🚀</span>
-                      Generate Complete Website
-                    </>
+                    'Generate Complete Website'
                   )}
                 </button>
               </div>
@@ -919,35 +689,16 @@ React.useEffect(() => {
 
                 <div className="flex flex-wrap gap-3 mb-4">
                   <button
-                    onClick={openLivePreview}
-                    className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-purple-800 font-medium flex items-center transition-all duration-200 shadow-md hover:shadow-lg"
+                    onClick={openBuiltPreview}
+                    className="bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-3 rounded-lg hover:from-green-700 hover:to-green-800 font-medium flex items-center transition-all duration-200 shadow-md hover:shadow-lg"
                   >
-                    <span className="mr-2">🌐</span>
-                    View Live Website
-                  </button>
-
-
-<button
-  onClick={openBuiltPreview}
-  className="bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-3 rounded-lg hover:from-green-700 hover:to-green-800 font-medium flex items-center transition-all duration-200 shadow-md hover:shadow-lg"
->
-  <span className="mr-2">🏗️</span>
-  View Built Website
-</button>
-
-                  <button
-                    onClick={startLivePreview}
-                    className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium flex items-center transition-all duration-200 shadow-md hover:shadow-lg"
-                  >
-                    <span className="mr-2">🚀</span>
-                    Smart Preview
+                    View Website
                   </button>
                   
                   <button
                     onClick={downloadWebsite}
-                    className="bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-3 rounded-lg hover:from-green-700 hover:to-green-800 font-medium flex items-center transition-all duration-200 shadow-md hover:shadow-lg"
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium flex items-center transition-all duration-200 shadow-md hover:shadow-lg"
                   >
-                    <span className="mr-2">📥</span>
                     Download ZIP
                   </button>
                   
@@ -955,60 +706,8 @@ React.useEffect(() => {
                     onClick={resetForm}
                     className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-6 py-3 rounded-lg hover:from-gray-700 hover:to-gray-800 font-medium transition-all duration-200 shadow-md hover:shadow-lg"
                   >
-                    <span className="mr-2">🔄</span>
                     Generate Another
                   </button>
-                </div>
-
-                <div className="mt-6 p-4 bg-white rounded-lg border border-gray-200">
-                  <h4 className="text-lg font-medium text-gray-900 mb-3">Diagnostic Tools</h4>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={debugLivePreview}
-                      className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Debug Preview
-                    </button>
-                    
-                    <button
-                      onClick={testDirectUrls}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Test URLs
-                    </button>
-                    
-                    <button
-                      onClick={inspectGeneratedFiles}
-                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Inspect Files
-                    </button>
-                    
-                    <button
-                      onClick={debugGenerationResult}
-                      className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Debug Data
-                    </button>
-                  </div>
-                  
-                  <div className="mt-3 text-sm text-gray-600">
-                    <p><strong>Debug Preview:</strong> Tests if the preview URL responds and analyzes HTML content</p>
-                    <p><strong>Test URLs:</strong> Opens all related URLs in separate tabs for manual testing</p>
-                    <p><strong>Inspect Files:</strong> Checks the size and structure of generated files</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 p-3 bg-gray-100 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">
-                      Generation ID: <code className="bg-gray-200 px-2 py-1 rounded text-xs">{result.generation_id}</code> | 
-                      Project ID: <code className="bg-gray-200 px-2 py-1 rounded text-xs">{result.project_id || 'Not available'}</code>
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      Files: {result.files_count} | Generated: {new Date().toLocaleTimeString()}
-                    </span>
-                  </div>
                 </div>
               </div>
             ) : (
@@ -1020,111 +719,128 @@ React.useEffect(() => {
                     <p className="text-red-700">{result.message}</p>
                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setResult(null)}
-                    className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-medium transition-colors"
-                  >
-                    Try Again
-                  </button>
-                  <button
-                    onClick={debugGenerationResult}
-                    className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 font-medium transition-colors"
-                  >
-                    Debug Error
-                  </button>
-                </div>
+                <button
+                  onClick={() => setResult(null)}
+                  className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-medium transition-colors"
+                >
+                  Try Again
+                </button>
               </div>
             )}
           </div>
         )}
 
-
-
-
         {result && result.success && (
-  <div className="mt-6 p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg">
-    <h4 className="text-lg font-medium text-purple-900 mb-4">
-      🤖 AI Website Editor
-    </h4>
-    
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Editing Instruction
-        </label>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={editPrompt}
-            onChange={(e) => setEditPrompt(e.target.value)}
-            placeholder="e.g., 'Change the primary color to green', 'Add a contact button to the header', 'Make the text larger'"
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-            disabled={isEditing}
-            onKeyPress={(e) => e.key === 'Enter' && applyAIEdit()}
-          />
-          <button
-            onClick={applyAIEdit}
-            disabled={isEditing || !editPrompt.trim()}
-            className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-          >
-            {isEditing ? (
-              <span className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Editing...
-              </span>
-            ) : (
-              'Apply Edit'
-            )}
-          </button>
-        </div>
-      </div>
-      
-      {/* Quick edit suggestions */}
-      <div>
-        <p className="text-sm text-gray-600 mb-2">Quick suggestions:</p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            'Change the primary color to red',
-            'Add a signup button',
-            'Make the header larger',
-            'Add social media links',
-            'Change the background color'
-          ].map((suggestion, index) => (
-            <button
-              key={index}
-              onClick={() => setEditPrompt(suggestion)}
-              className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1 rounded-full transition-colors"
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
-      </div>
-      
-      {/* Edit history */}
-      {editHistory.length > 0 && (
-        <div>
-          <h5 className="text-sm font-medium text-gray-700 mb-2">Recent Edits</h5>
-          <div className="max-h-32 overflow-y-auto space-y-1">
-            {editHistory.slice(-5).reverse().map((edit, index) => (
-              <div key={index} className="text-xs p-2 rounded bg-white border">
-                <div className="flex items-center justify-between">
-                  <span className={edit.success ? 'text-green-600' : 'text-red-600'}>
-                    {edit.success ? '✓' : '✗'} {edit.instruction}
-                  </span>
-                  <span className="text-gray-500">
-                    {new Date(edit.timestamp).toLocaleTimeString()}
-                  </span>
+          <div className="mt-6 p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg">
+            <h4 className="text-lg font-medium text-purple-900 mb-4">
+              AI Website Editor
+            </h4>
+            
+            {isEditing && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+                  <span className="text-blue-800 font-medium">Building your changes...</span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2">
+                  <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
                 </div>
               </div>
-            ))}
+            )}
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Editing Instruction
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    placeholder="e.g., 'Change the primary color to green', 'Add a contact button to the header'"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    disabled={isEditing}
+                    onKeyPress={(e) => e.key === 'Enter' && !isEditing && applyAIEdit()}
+                  />
+                  <button
+                    onClick={applyAIEdit}
+                    disabled={isEditing || !editPrompt.trim()}
+                    className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    {isEditing ? 'Processing...' : 'Apply Edit'}
+                  </button>
+                  <button
+                    onClick={refreshPreview}
+                    disabled={isEditing}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                  >
+                    <span>🔄</span>
+                    Refresh Preview
+                  </button>
+                </div>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Quick suggestions:</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'Change the primary color to red',
+                    'Add a signup button',
+                    'Make the header larger',
+                    'Add social media links',
+                    'Change the background color'
+                  ].map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => !isEditing && setEditPrompt(suggestion)}
+                      disabled={isEditing}
+                      className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1 rounded-full transition-colors disabled:opacity-50"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Tip: After applying edits, click "Refresh Preview" to see your changes</p>
+              </div>
+              
+              {editHistory.length > 0 && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">Recent Edits</h5>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {editHistory.slice(-5).reverse().map((edit, index) => (
+                      <div key={index} className={`text-xs p-2 rounded border ${
+                        edit.status === 'processing' ? 'bg-blue-50 border-blue-200' :
+                        edit.success ? 'bg-white border-gray-200' : 'bg-red-50 border-red-200'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className={
+                            edit.status === 'processing' ? 'text-blue-600 flex items-center' :
+                            edit.success ? 'text-green-600' : 'text-red-600'
+                          }>
+                            {edit.status === 'processing' && (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-2"></div>
+                            )}
+                            {edit.success ? '✓' : '✗'} {edit.instruction}
+                          </span>
+                          <span className="text-gray-500">
+                            {new Date(edit.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        {edit.error && (
+                          <p className="text-red-500 text-xs mt-1">{edit.error}</p>
+                        )}
+                        {edit.summary && (
+                          <p className="text-gray-500 text-xs mt-1">{edit.summary}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  </div>
-)}
+        )}
 
         <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
           <h3 className="text-xl font-semibold text-gray-900 mb-4">What You'll Get</h3>
@@ -1174,11 +890,6 @@ React.useEffect(() => {
                 <li className="flex items-center">
                   <span className="text-green-500 mr-2">✓</span>
                   Docker configuration included
-
-
-                  {generating && generationId && (
-  <GenerationProgress generationId={generationId} templateType={templateType} />
-)}
                 </li>
               </ul>
             </div>
