@@ -108,3 +108,10 @@ tasks*
 *.ssh
 __pycache__/
 *.pyc
+
+
+generated_blog_site/
+
+playground/output_files/*
+playground/input_files/*
+

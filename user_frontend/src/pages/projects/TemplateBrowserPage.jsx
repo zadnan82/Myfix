@@ -357,11 +357,9 @@ React.useEffect(() => {
   try {
     console.log(`🤖 Applying AI edit: ${editPrompt}`);
     
-    const response = await apiClient.post('/api/v1/ai-edit/apply', {
-      generation_id: result.generation_id,
-      template_type: result.template_type,
-      instruction: editPrompt,
-      target_component: 'auto', // or specific component name
+    const response = await apiClient.post('/api/v1/ai/change-project-from-description', {
+      description: editPrompt,
+      project_name: result.project_name,
     });
 
     console.log('✅ AI edit successful:', response);
@@ -370,8 +368,7 @@ React.useEffect(() => {
     setEditHistory(prev => [...prev, {
       instruction: editPrompt,
       timestamp: new Date().toISOString(),
-      success: true,
-      changes: response.changes
+      success: true
     }]);
     
     setEditPrompt('');

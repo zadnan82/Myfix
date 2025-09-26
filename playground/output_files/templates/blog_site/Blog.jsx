@@ -3,8 +3,8 @@ import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 
 export default function Blog_SiteBlogPage() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
