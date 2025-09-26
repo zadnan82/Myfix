@@ -36,6 +36,7 @@ def login_endpoint(user: User, db: Session = Depends(get_db)):
     
     Returns session token on successful login.
     """
+    
     db_user = db.query(UserDB).filter(UserDB.username == user.username).first()
     if not db_user or not pwd_context.verify(user.password, db_user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")

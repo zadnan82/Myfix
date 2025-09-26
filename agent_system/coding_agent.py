@@ -4,7 +4,7 @@ import random
 import os
 
 
-from .rag_integration import AgentRAGService
+from agent_system.rag_integration import AgentRAGService
 
 
 def compile_tokens(tokens: str, is_frontend: bool) -> Dict[str, Any]:
@@ -65,7 +65,6 @@ def solve_subtask(
     """
 
     rag_context = rag_service.get_relevant_context(subtask)
-    suggested_tokens = rag_service.suggest_tokens(subtask)
 
     # Determine context for token filtering with broader keywords
     is_backend = any(
@@ -121,32 +120,19 @@ def solve_subtask(
 
     rag_context_text = ""
     if rag_context:
-        rag_context_text = "\n\nRelevant context from knowledge base:\n"
+        rag_context_text = "\n\nThis is the relevant context from the knowledge base and are the only valid tokens:\n"
         for ctx in rag_context[:1]:  # Use top 2 most relevant
             rag_context_text += (
                 f"- {ctx['title']}: {ctx['content'][:200]}...\n"
             )
-
-    token_context = ""
-    if suggested_tokens:
-        token_context = f"\n\nSuggested SEVDO tokens that might be relevant: {', '.join(suggested_tokens)}"
-
-    # Build enhanced context for coding agent
-    enhanced_context = f"Original task: {subtask}"
-
-    if suggested_tokens:
-        enhanced_context += (
-            f"\nSuggested SEVDO tokens: {', '.join(suggested_tokens)}"
-        )
-    if rag_context:
-        enhanced_context += f"\nRelevant patterns: {rag_context[0]['title'] if rag_context else 'None'}"
 
     system_prompt = (
         "You are a focused coding agent. Given a subtask, and context, use the language SEVDO "
         "to complete it. You may only follow the context explaining the language SEVDO which "
         "uses letters and groups of letters to represent a code language. "
         "Follow the subtask completely and you can only use the letters given to you as context. "
-        "CRITICAL: Output ONLY space-separated tokens. NO explanations whatsoever.\n\n"
+        "CRITICAL: Output ONLY space-separated tokens. NO explanations whatsoever. Write out the full SEVDO file content as to overwrite file content.\n\n"
+        "Do not put any newlines in your output. Only space-separated tokens.\n\n"
         "Examples:\n"
         "User: 'login system'\n"
         "Assistant: l r m\n\n"
@@ -155,10 +141,8 @@ def solve_subtask(
         "User: 'contact page with form'\n"
         "Assistant: h t cf i b\n\n"
         "User: 'navigation with images'\n"
-        "Assistant: n img img h" + rag_context_text + token_context
+        "Assistant: n img img h\n" + rag_context_text
     )
-
-    user_prompt = f"Subtask: {subtask}\n\nContext (optional): {enhanced_context or 'N/A'}"
 
     # Use FastAPI LLM gateway endpoint (configurable) with JSON body
     base_url = os.environ.get("LLM_GATEWAY_URL", "http://192.168.16.103:8000")
@@ -168,7 +152,7 @@ def solve_subtask(
     try:
         payload = {
             "model_name": model,
-            "prompt": user_prompt,
+            "prompt": subtask,
             "system_prompt": system_prompt,
         }
         http_resp = requests.post(url_simple, json=payload, timeout=60)
@@ -185,105 +169,6 @@ def solve_subtask(
             content = http_resp.text
     except Exception:
         content = ""
-
-    # Extract only valid SEVDO tokens using RAG service
-    valid_tokens = rag_service.get_all_tokens()
-    if valid_tokens:
-        tokens = []
-        words = content.split()
-        for i, word in enumerate(words):
-            clean_word = word.strip(".,!?()[]{}").lower()
-            if clean_word in valid_tokens:
-                # Context-aware filtering for ambiguous tokens
-                if clean_word == "a":
-                    # "a" is backend token (logout all) - block entirely in frontend contexts
-                    if is_frontend:
-                        continue
-                    # Even in backend, only allow if it's clearly a logout-all context
-                    if is_backend and not (
-                        "logout" in subtask.lower()
-                        and "all" in subtask.lower()
-                    ):
-                        continue
-
-                # Extra validation for other single-letter tokens
-                if len(clean_word) == 1 and clean_word != "a":
-                    # Check context for other single letters
-                    prev_word = words[i - 1].lower() if i > 0 else ""
-                    next_word = (
-                        words[i + 1].lower() if i < len(words) - 1 else ""
-                    )
-
-                    # Skip if surrounded by English context
-                    if prev_word in [
-                        "and",
-                        "or",
-                        "is",
-                        "was",
-                        "has",
-                        "have",
-                        "the",
-                        "in",
-                        "on",
-                        "at",
-                    ]:
-                        if next_word in [
-                            "system",
-                            "way",
-                            "method",
-                            "form",
-                            "page",
-                            "website",
-                            "component",
-                            "element",
-                        ]:
-                            continue
-
-                tokens.append(clean_word)
-
-        # Remove excessive duplicates (max 2 same tokens in a row)
-        final_tokens = []
-        prev_token = None
-        count = 0
-        for token in tokens:
-            if token == prev_token:
-                count += 1
-                if count < 3:  # Max 2 in a row
-                    final_tokens.append(token)
-            else:
-                final_tokens.append(token)
-                count = 1
-            prev_token = token
-
-        content = (
-            " ".join(final_tokens[:8]) if final_tokens else content.strip()
-        )
-    else:
-        content = content.strip()
-
-    # Emergency fallback: if we extracted no clean tokens, extract from any SEVDO patterns
-    if not final_tokens:
-        # Look for token patterns in the full output (markdown lists, mentions, etc.)
-        emergency_tokens = []
-        for token in valid_tokens:
-            if token in content.lower():
-                emergency_tokens.append(token)
-        if emergency_tokens:
-            content = " ".join(emergency_tokens[:5])
-        else:
-            # Last resort: suggest tokens based on subtask
-            fallback_tokens = []
-            if "login" in subtask.lower():
-                fallback_tokens.extend(["lf", "i", "b"])
-            elif "form" in subtask.lower():
-                fallback_tokens.extend(["i", "b"])
-            elif "button" in subtask.lower():
-                fallback_tokens.append("b")
-            elif "input" in subtask.lower():
-                fallback_tokens.append("i")
-
-            if fallback_tokens:
-                content = " ".join(fallback_tokens[:3])
 
     print("""THE CODING AGENT OUTPUT: """, content)
 

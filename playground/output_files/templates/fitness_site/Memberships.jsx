@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Fitness_SiteMembershipsPage() {
   return (
@@ -7,13 +8,13 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-6xl mx-auto px-4">
     <div className="flex justify-between items-center py-4">
       <div className="flex items-center">
-        <h1 className="text-xl font-bold text-gray-800">Brand</h1>
+        <Link to="/" className="text-xl font-bold text-gray-800 hover:text-blue-600 transition-colors duration-200">Brand</Link>
       </div>
       <div className="hidden md:flex space-x-1">
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Home</a>
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">About</a>
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Services</a>
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Contact</a>
+        <Link to="/" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Home</Link>
+        <Link to="/about" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">About</Link>
+        <Link to="/services" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Services</Link>
+        <Link to="/contact" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Contact</Link>
       </div>
       <div className="md:hidden">
         <button className="text-gray-700 hover:text-blue-600 focus:outline-none">
@@ -149,45 +150,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">State-of-the-Art Equipment</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Access to the latest cardio machines, strength equipment, and functional training tools</p>
     </div>
   </div>
 </section>
@@ -195,45 +158,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Expert-Led Classes</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Over 50 group fitness classes per week taught by certified instructors</p>
     </div>
   </div>
 </section>
@@ -241,45 +166,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Flexible Scheduling</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">24/7 access for Basic+ members, early morning and late evening class options</p>
     </div>
   </div>
 </section>
@@ -287,45 +174,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Community Support</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Join a supportive community of fitness enthusiasts and make lasting connections</p>
     </div>
   </div>
 </section>
@@ -333,45 +182,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Clean & Safe Environment</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Regularly sanitized equipment, spacious workout areas, and professional maintenance</p>
     </div>
   </div>
 </section>
@@ -379,45 +190,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">No Hidden Fees</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Transparent pricing with no enrollment fees for Premium and VIP memberships</p>
     </div>
   </div>
 </section>
@@ -427,45 +200,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Team Discounts</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">15% off monthly rates for groups of 10+ employees from the same company</p>
     </div>
   </div>
 </section>
@@ -473,45 +208,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Wellness Programs</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Custom corporate wellness programs including lunch-and-learn sessions and fitness challenges</p>
     </div>
   </div>
 </section>
@@ -519,45 +216,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Flexible Billing</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Direct corporate billing options and flexible payment terms available</p>
     </div>
   </div>
 </section>
@@ -566,45 +225,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Guest Privileges</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Bring friends and family to experience PowerFit with monthly guest passes</p>
     </div>
   </div>
 </section>
@@ -612,45 +233,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Nationwide Access</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Access to partner gyms when traveling - over 500 locations nationwide</p>
     </div>
   </div>
 </section>
@@ -658,45 +241,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Member Events</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Exclusive workshops, fitness challenges, and social events throughout the year</p>
     </div>
   </div>
 </section>
@@ -704,45 +249,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Referral Rewards</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Earn free months when you refer friends who join PowerFit</p>
     </div>
   </div>
 </section>
@@ -751,45 +258,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Membership Freeze</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Freeze your membership for up to 3 months per year for medical or travel reasons</p>
     </div>
   </div>
 </section>
@@ -797,45 +266,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Easy Cancellation</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Cancel anytime with 30-day notice - no cancellation fees or penalties</p>
     </div>
   </div>
 </section>
@@ -843,106 +274,18 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Money-Back Guarantee</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Not satisfied? Get a full refund within your first 30 days</p>
     </div>
   </div>
 </section>
-      <section className="py-20 bg-blue-50">
+      <section className="py-20 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
   <div className="max-w-4xl mx-auto px-4 text-center">
-    <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">Ready to Join PowerFit?</h2>
-    <p className="text-xl text-gray-600 mb-4">Join 10,000+ companies already using our platform</p>
-    <p className="text-lg text-gray-600 mb-8 max-w-3xl mx-auto">Start your free trial today. No credit card required. Cancel anytime.</p>
-    
-        <div className="flex items-center justify-center space-x-6 mb-8 text-sm">
-            <div className="flex items-center text-green-600">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                14-day free trial
-            </div>
-            <div className="flex items-center text-green-600">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                No credit card required
-            </div>
-            <div className="flex items-center text-green-600">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                Cancel anytime
-            </div>
-        </div>
-    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-      <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+    <h2 className="text-4xl md:text-5xl font-bold mb-6">Ready to Join PowerFit?</h2>
+    <p className="text-xl text-blue-100 mb-8">Start your fitness journey today with our 7-day free trial - no commitment required</p>
+    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+      <Link to="/blog" className="bg-white text-blue-600 hover:bg-blue-50 font-bold px-8 py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
         Start Free Trial
-      </button>
-      <button className="border-2 border-gray-300 text-gray-700 hover:bg-white font-semibold px-8 py-4 rounded-xl text-lg transition-all duration-300">
-        Book a Demo
-      </button>
-    </div>
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center justify-center mb-4">
-          <div className="flex text-yellow-400">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-            </svg>
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-            </svg>
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-            </svg>
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-            </svg>
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-            </svg>
-          </div>
-        </div>
-        <p className="text-gray-700 italic mb-3">"This platform increased our productivity by 300%"</p>
-        <p className="text-gray-600 font-semibold">Sarah Chen, CEO at TechCorp</p>
-      </div>
+      </Link>
     </div>
   </div>
 </section>
@@ -951,45 +294,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">What's included in the free trial?</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Full access to gym equipment, 3 group classes, and a complimentary fitness assessment</p>
     </div>
   </div>
 </section>
@@ -997,45 +302,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Can I change my membership plan?</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Yes, you can upgrade or downgrade your plan at any time with changes taking effect the next billing cycle</p>
     </div>
   </div>
 </section>
@@ -1043,45 +310,7 @@ export default function Fitness_SiteMembershipsPage() {
   <div className="max-w-7xl mx-auto px-4">
     <div className="text-center mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-4">Are there any long-term contracts?</h2>
-      <p className="text-xl text-gray-600 max-w-3xl mx-auto">Everything you need to succeed, built for modern teams</p>
-    </div>
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">⚡</div>
-            <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Load times under 200ms with our global CDN network</p>
-            <div className="text-blue-600 font-semibold text-sm">3x faster</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔒</div>
-            <h3 className="font-bold text-gray-900 mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">SOC 2 compliant with end-to-end encryption</p>
-            <div className="text-blue-600 font-semibold text-sm">99.9% secure</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🚀</div>
-            <h3 className="font-bold text-gray-900 mb-2">Auto-Scaling</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Handle millions of requests without breaking a sweat</p>
-            <div className="text-blue-600 font-semibold text-sm">10M+ requests</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">📊</div>
-            <h3 className="font-bold text-gray-900 mb-2">Real-time Analytics</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Live dashboards with actionable insights</p>
-            <div className="text-blue-600 font-semibold text-sm">Live data</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🔄</div>
-            <h3 className="font-bold text-gray-900 mb-2">Zero Downtime</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Continuous deployment with instant rollbacks</p>
-            <div className="text-blue-600 font-semibold text-sm">99.99% uptime</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-all duration-300">
-            <div className="text-3xl mb-4">🤝</div>
-            <h3 className="font-bold text-gray-900 mb-2">24/7 Support</h3>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">Expert human support when you need it most</p>
-            <div className="text-blue-600 font-semibold text-sm">5min response</div>
-        </div>
+      <p className="text-xl text-gray-600 max-w-3xl mx-auto">No contracts required for Basic, Premium, and VIP memberships. Student memberships require a semester minimum</p>
     </div>
   </div>
 </section>

@@ -1,4 +1,4 @@
-mn(h(DevInsights),m(Home,Blog,About,Contact))
+mn(h(DevInsights),m(Home,Blog,About,Contact,Admin))
 
 ho(h(Welcome to DevInsights),t(Sharing knowledge about web development, programming, and technology),b(Read Latest Posts))
 

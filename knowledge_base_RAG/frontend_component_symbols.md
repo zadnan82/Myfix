@@ -27,3 +27,31 @@ List of the existing component frontend symbols:
 - qa: Q&A (Questions and Answers)
 - cf: Contact form
 - co: Cookie
+- ho: Hero section
+- fl: Feature list
+- pt: Pricing table
+- cta: Call-to-action section
+- bpc: Blog post card
+- al: Article layout
+- bl: Blog list
+- mic: Menu item card
+- mc: Menu category
+- hrs: Opening hours display
+- ac: Add to cart
+- pdc: Product cart
+- cal: Calender
+- fc: Fitness card
+- tc: Trainer card
+- mec: Membership card
+- prc: Program card
+- gl: Gallery items
+- wp: Wedding packages
+- lp: Lawyer profiles
+- pl: Property listings
+- st: Statistics card
+- ts: Text section
+- ns: Newsletter subscribe
+- adb: Admin dashboard
+- bpe: Blog post editor
+- apl: Admin post list
+- ci: Contact information

@@ -2,12 +2,12 @@
 def render_prefab(args, props):
     # Default values
     title = "Login to Your Account"
-    email_label = props.get("emailLabel", "Email")
+    email_label = props.get("emailLabel", "Username")
     password_label = props.get("passwordLabel", "Password")
     signin_text = props.get("buttonText", "Sign In")
     forgot_text = props.get("forgotText", "Forgot Password?")
     # Action-related props
-    sign_in_path = props.get("signInPath")  # e.g., /api/echo
+    sign_in_path = props.get("signInPath", "/api/login")  # Changed to /api/login-form
     sign_in_method = (props.get("signInMethod") or "POST").upper()
     signin_action = props.get("signinAction")  # fallback: direct action string
     forgot_action = props.get("forgotAction")
@@ -19,13 +19,14 @@ def render_prefab(args, props):
         # Import parser when needed to avoid circular imports
         import sys
         import os
+
         # Get the parent directory path
-        parent_dir = os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)))
+        parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if parent_dir not in sys.path:
             sys.path.append(parent_dir)
         # Import directly from the file
         from frontend_compiler import parse_dsl
+
         try:
             # Try to parse args as DSL
             nodes = parse_dsl(args)
@@ -46,25 +47,44 @@ def render_prefab(args, props):
     email_id = "lf-email"
     password_id = "lf-password"
 
-    # Sign-in handler: prefer signInPath/method to auto-JSON body; else use signinAction
-    if sign_in_path:
-        # Build an inline function generating JSON from inputs at click time
-        signin_handler = (
-            " onClick={() => window.sevdoAct('api:"
-            + sign_in_method
-            + " "
-            + sign_in_path
-            + "|' + JSON.stringify({email: document.getElementById('"
-            + email_id
-            + "').value, password: document.getElementById('"
-            + password_id
-            + "').value}))}"
-        )
-    elif signin_action:
-        safe = signin_action.replace("\\", "\\\\").replace("'", "\\'")
-        signin_handler = f" onClick={{() => window.sevdoAct('{safe}')}}"
-    else:
-        signin_handler = ""
+    # Direct fetch handler instead of sevdoAct
+    signin_handler = f"""
+ onClick={{(e) => {{
+   e.preventDefault();
+   const username = document.getElementById('{email_id}').value;
+   const password = document.getElementById('{password_id}').value;
+   
+   if (!username || !password) {{
+     alert('Please enter both username and password');
+     return;
+   }}
+   
+   console.log('Attempting login...');
+   
+   fetch('{sign_in_path}', {{
+     method: '{sign_in_method}',
+     headers: {{'Content-Type': 'application/json'}},
+     body: JSON.stringify({{username: username, password: password, remember_me: false}})
+   }})
+   .then(response => {{
+     console.log('Response status:', response.status);
+     return response.json();
+   }})
+   .then(data => {{
+     console.log('Login response:', data);
+     if (data.session_token) {{
+       localStorage.setItem('authToken', data.session_token);
+       console.log('Token saved, redirecting to admin...');
+       window.location.href = '/admin';
+     }} else {{
+       alert(data.detail || 'Login failed');
+     }}
+   }})
+   .catch(error => {{
+     console.error('Login error:', error);
+     alert('Login failed. Please try again.');
+   }});
+ }}}}"""
 
     if forgot_action:
         safe_f = forgot_action.replace("\\", "\\\\").replace("'", "\\'")
@@ -91,15 +111,35 @@ def render_prefab(args, props):
     actions_class = "flex flex-row gap-2 mt-4"
     if props.get("actionsClass"):
         actions_class = f"{actions_class} {props.get('actionsClass')}"
-    signin_class = "bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded"
+    signin_class = (
+        "bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded"
+    )
     if props.get("signinClass"):
         signin_class = f"{signin_class} {props.get('signinClass')}"
-    forgot_class = "bg-gray-500 hover:bg-gray-600 text-white font-medium px-4 py-2 rounded"
+    forgot_class = (
+        "bg-gray-500 hover:bg-gray-600 text-white font-medium px-4 py-2 rounded"
+    )
     if props.get("forgotClass"):
         forgot_class = f"{forgot_class} {props.get('forgotClass')}"
 
     # Generate full form with customized parts
-    return f"""<form className=\"{form_class}\">\n  <h1 className=\"{title_class}\">{title}</h1>\n  <div className=\"{container_class}\">\n    <label className=\"{label_class}\">\n      <span className=\"mb-1 block\">{email_label}</span>\n      <input id=\"{email_id}\" name=\"email\" className=\"{input_class}\" placeholder=\"Enter your email\" />\n    </label>\n    <label className=\"{label_class}\">\n      <span className=\"mb-1 block\">{password_label}</span>\n      <input id=\"{password_id}\" name=\"password\" className=\"{input_class}\" type=\"password\" placeholder=\"Enter your password\" />\n    </label>\n    <div className=\"{actions_class}\">\n      <button className=\"{signin_class}\"{signin_handler}>{signin_text}</button>\n      <button className=\"{forgot_class}\"{forgot_handler}>{forgot_text}</button>\n    </div>\n  </div>\n</form>"""
+    return f"""<form className="{form_class}">
+  <h1 className="{title_class}">{title}</h1>
+  <div className="{container_class}">
+    <label className="{label_class}">
+      <span className="mb-1 block">{email_label}</span>
+      <input id="{email_id}" name="username" className="{input_class}" placeholder="Enter your username" />
+    </label>
+    <label className="{label_class}">
+      <span className="mb-1 block">{password_label}</span>
+      <input id="{password_id}" name="password" className="{input_class}" type="password" placeholder="Enter your password" />
+    </label>
+    <div className="{actions_class}">
+      <button type="button" className="{signin_class}"{signin_handler}>{signin_text}</button>
+      <button type="button" className="{forgot_class}"{forgot_handler}>{forgot_text}</button>
+    </div>
+  </div>
+</form>"""
 
 
 # Register with token "lf"

@@ -67,16 +67,13 @@ const OverviewTab = ({ navigate }) => {
     }
   };
 
-
   if (activeView === "hybrid-builder") {
     return <HybridBuilderPage onBack={() => setActiveView("dashboard")} />;
-
   }
 
   if (activeView === "sevdo-builder") {
     return <SevdoBuilderPage onBack={() => setActiveView("dashboard")} />;
   }
-
 
   if (activeView === "llm-editor") {
     // Navigate to LLM Editor route
@@ -287,12 +284,14 @@ const OverviewTab = ({ navigate }) => {
           <Button
             variant="outline"
             className="h-20 sm:h-24 flex flex-col items-center justify-center space-y-2 border-green-300 hover:border-green-500 hover:bg-green-50"
-            onClick={() => setActiveView("llm-editor")}
+            onClick={() => (window.location.href = "/edit-with-llm")}
           >
             <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-green-700" />
             <div className="text-center">
-              <div className="font-medium text-sm sm:text-base">Edit txt with LLM</div>
-              <div className="text-xs opacity-70">Edit .txt via GPU</div>
+              <div className="font-medium text-sm sm:text-base">
+                Edit with LLM
+              </div>
+              <div className="text-xs opacity-70">Pick project to edit</div>
             </div>
           </Button>
         </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Restaurant_SiteMenuPage() {
   return (
@@ -7,13 +8,13 @@ export default function Restaurant_SiteMenuPage() {
   <div className="max-w-6xl mx-auto px-4">
     <div className="flex justify-between items-center py-4">
       <div className="flex items-center">
-        <h1 className="text-xl font-bold text-gray-800">Brand</h1>
+        <Link to="/" className="text-xl font-bold text-gray-800 hover:text-blue-600 transition-colors duration-200">Brand</Link>
       </div>
       <div className="hidden md:flex space-x-1">
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Home</a>
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">About</a>
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Services</a>
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Contact</a>
+        <Link to="/" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Home</Link>
+        <Link to="/about" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">About</Link>
+        <Link to="/services" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Services</Link>
+        <Link to="/contact" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Contact</Link>
       </div>
       <div className="md:hidden">
         <button className="text-gray-700 hover:text-blue-600 focus:outline-none">
@@ -103,18 +104,13 @@ export default function Restaurant_SiteMenuPage() {
       <p>Extensive selection of Italian wines and craft cocktails available. Ask your server for our wine list and daily specials.</p>
       <h1 className="text-3xl md:text-4xl font-bold text-gray-900 text-left">Header</h1>
       <p>Menu items and prices subject to seasonal availability. Please inform us of any allergies or dietary restrictions.</p>
-      <section className="py-16 bg-white border-t border-b border-gray-200">
-  <div className="max-w-4xl mx-auto px-4 text-center">
+      <section className="py-16 bg-gray-50">
+  <div className="max-w-3xl mx-auto px-4 text-center">
     <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready to Transform Your Business?</h2>
-    <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">Start your free trial today. No credit card required. Cancel anytime.</p>
-    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-      <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors duration-300">
-        Start Free Trial
-      </button>
-      <button className="text-gray-600 hover:text-gray-800 font-semibold px-6 py-3 transition-colors duration-300">
-        Book a Demo
-      </button>
-    </div>
+    <p className="text-lg text-gray-600 mb-8">Join 10,000+ companies already using our platform</p>
+    <Link to="/blog" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors duration-200">
+      Start Free Trial
+    </Link>
   </div>
 </section>
     </>

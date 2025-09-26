@@ -1,4 +1,4 @@
-mn(h(DevInsights),m(Home,Blog,About,Contact))
+mn(h(DevInsights),m(Home,Blog,About,Contact,Admin))
 
 ho(h(About DevInsights),t(Hi, I'm Alex - a full-stack developer passionate about sharing knowledge),b(Read My Story))
 
@@ -10,4 +10,4 @@ fl(h(What You'll Find Here),t(Topics I'm passionate about and love to explore))
 
 tt(h(Kind Words from Readers))
 
-cta{style=split}(h(Let's Connect),t(Have questions or want to collaborate? I'd love to hear from you),b(Get in Touch))
+cta(h(Let's Connect),t(Have questions or want to collaborate? I'd love to hear from you),b(Get in Touch))

@@ -3,7 +3,7 @@
 import os
 import logging
 from typing import Optional, List
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -163,6 +163,20 @@ class Settings(BaseSettings):
         description="Allow unauthenticated public LLM editor endpoint",
     )
 
+    # Edit with LLM configuration
+    PROJECTS_ROOT: str = Field(
+        default="/app/generated_websites",
+        description="Root directory for projects editable by Edit with LLM",
+    )
+    CONTAINER_NAME: str = Field(
+        default="sevdo-preview-manager",
+        description="Docker container name hosting previews/projects",
+    )
+    EDIT_API_BASE: Optional[str] = Field(
+        default=None,
+        description="Optional external AI Edit API base (overrides local editor)",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -171,7 +185,8 @@ class Settings(BaseSettings):
     )
 
     # Validators
-    @validator("SEVDO_ENV")
+    @field_validator("SEVDO_ENV")
+    @classmethod
     def validate_environment(cls, v):
         """Validate environment setting"""
         allowed_envs = ["development", "staging", "production", "testing"]
@@ -180,7 +195,8 @@ class Settings(BaseSettings):
                 f"SEVDO_ENV must be one of: {', '.join(allowed_envs)}")
         return v
 
-    @validator("DB_URL")
+    @field_validator("DB_URL")
+    @classmethod
     def validate_database_url(cls, v):
         """Validate database URL format"""
         if not v:
@@ -193,7 +209,8 @@ class Settings(BaseSettings):
 
         return v
 
-    @validator("ACCESS_TOKEN_EXPIRE_MINUTES")
+    @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES")
+    @classmethod
     def validate_token_expiry(cls, v):
         """Validate token expiry time"""
         if v < 1:
@@ -204,7 +221,8 @@ class Settings(BaseSettings):
             )
         return v
 
-    @validator("SECRET_KEY")
+    @field_validator("SECRET_KEY")
+    @classmethod
     def validate_secret_key(cls, v):
         """Validate secret key"""
         if len(v) < 32:
@@ -218,7 +236,8 @@ class Settings(BaseSettings):
 
         return v
 
-    @validator("LOG_LEVEL")
+    @field_validator("LOG_LEVEL")
+    @classmethod
     def validate_log_level(cls, v):
         """Validate log level"""
         allowed_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -227,7 +246,8 @@ class Settings(BaseSettings):
                 f"LOG_LEVEL must be one of: {', '.join(allowed_levels)}")
         return v.upper()
 
-    @validator("LOG_FORMAT")
+    @field_validator("LOG_FORMAT")
+    @classmethod
     def validate_log_format(cls, v):
         """Validate log format"""
         allowed_formats = ["json", "text"]
@@ -236,7 +256,8 @@ class Settings(BaseSettings):
                 f"LOG_FORMAT must be one of: {', '.join(allowed_formats)}")
         return v
 
-    @validator("RATE_LIMIT_REQUESTS")
+    @field_validator("RATE_LIMIT_REQUESTS")
+    @classmethod
     def validate_rate_limit(cls, v):
         """Validate rate limit settings"""
         if v < 1:
@@ -245,7 +266,8 @@ class Settings(BaseSettings):
             raise ValueError("RATE_LIMIT_REQUESTS cannot exceed 100000")
         return v
 
-    @validator("UPLOAD_MAX_SIZE")
+    @field_validator("UPLOAD_MAX_SIZE")
+    @classmethod
     def validate_upload_size(cls, v):
         """Validate upload size"""
         if v < 1024:  # 1KB minimum
@@ -256,17 +278,27 @@ class Settings(BaseSettings):
                 "UPLOAD_MAX_SIZE cannot exceed 104857600 bytes (100MB)")
         return v
 
-    @validator("CORS_ORIGINS")
+    @field_validator("CORS_ORIGINS")
+    @classmethod
     def validate_cors_origins(cls, v):
         """Validate CORS origins"""
         if not v:
             return ["*"]  # Allow all if none specified
 
-        for origin in v:
-            if not origin.startswith(("http://", "https://")):
-                logger.warning(
-                    f"CORS origin '{origin}' should start with http:// or https://"
-                )
+        # Handle string input (comma-separated or single value)
+        if isinstance(v, str):
+            if v == "*":
+                return ["*"]
+            # Split comma-separated string into list
+            v = [origin.strip() for origin in v.split(",") if origin.strip()]
+
+        # Handle list input
+        if isinstance(v, list):
+            for origin in v:
+                if not origin.startswith(("http://", "https://")):
+                    logger.warning(
+                        f"CORS origin '{origin}' should start with http:// or https://"
+                    )
 
         return v
 
@@ -404,6 +436,14 @@ except Exception as e:
         )
         LLM_EDITOR_ALLOW_PUBLIC = os.getenv(
             "LLM_EDITOR_ALLOW_PUBLIC", "false").lower() in ("1", "true", "yes")
+
+        # Edit with LLM configuration
+        PROJECTS_ROOT = os.getenv("PROJECTS_ROOT", "/app/generated_websites")
+        CONTAINER_NAME = os.getenv("CONTAINER_NAME", "sevdo-preview-manager")
+        EDIT_API_BASE = os.getenv("EDIT_API_BASE", None)
+
+        # CORS fallback (for when main settings fail)
+        CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173,http://localhost:8080").split(",")
 
         @property
         def is_development(self):

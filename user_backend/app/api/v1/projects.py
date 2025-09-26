@@ -474,7 +474,8 @@ async def list_projects(
     if project_type:
         query = query.where(Project.project_type == project_type)
 
-    query = query.order_by(desc(Project.updated_at)).limit(limit).offset(offset)
+    query = query.order_by(desc(Project.updated_at)
+                           ).limit(limit).offset(offset)
 
     projects = db.execute(query).scalars().all()
     return [convert_project_to_schema(p) for p in projects]

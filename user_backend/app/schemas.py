@@ -91,7 +91,9 @@ class UserBaseSchema(BaseModel):
         # Remove extra whitespace and validate characters
         cleaned = v.strip()
         if len(cleaned) < 1:
-            raise ValueError("Name must be at least 1 character after trimming")
+            raise ValueError(
+                "Name must be at least 1 character after trimming"
+            )
 
         # Allow letters, spaces, hyphens, and apostrophes
         if not re.match(r"^[a-zA-Z\s\-']+$", cleaned):
@@ -142,9 +144,13 @@ class UserRegisterSchema(UserBaseSchema):
         has_digit = any(c.isdigit() for c in v)
 
         if not has_upper:
-            raise ValueError("Password must contain at least one uppercase letter")
+            raise ValueError(
+                "Password must contain at least one uppercase letter"
+            )
         if not has_lower:
-            raise ValueError("Password must contain at least one lowercase letter")
+            raise ValueError(
+                "Password must contain at least one lowercase letter"
+            )
         if not has_digit:
             raise ValueError("Password must contain at least one number")
 
@@ -201,7 +207,9 @@ class UserUpdateSchema(BaseModel):
 
             cleaned = v.strip()
             if len(cleaned) < 1:
-                raise ValueError("Name must be at least 1 character after trimming")
+                raise ValueError(
+                    "Name must be at least 1 character after trimming"
+                )
 
             if not re.match(r"^[a-zA-Z\s\-']+$", cleaned):
                 raise ValueError(
@@ -329,7 +337,9 @@ class PasswordChangeSchema(BaseModel):
 class PasswordResetRequestSchema(BaseModel):
     """Schema for password reset request"""
 
-    email: EmailStr = Field(..., description="Email address to send reset link")
+    email: EmailStr = Field(
+        ..., description="Email address to send reset link"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={"example": {"email": "user@example.com"}}
@@ -570,7 +580,9 @@ class ProjectCreateSchema(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     project_type: ProjectType = ProjectType.WEB_APP
-    features: List[str] = Field(default=[], description="List of feature names")
+    features: List[str] = Field(
+        default=[], description="List of feature names"
+    )
     config: Dict[str, Any] = Field(default={})
     working_directory: Optional[str] = None
     include_imports: bool = True
@@ -1081,3 +1093,8 @@ class TemplateUseSchema(BaseModel):
     project_name: str = Field(..., min_length=1, max_length=200)
     project_description: Optional[str] = None
     customize_config: Optional[Dict[str, Any]] = None
+
+
+class ChangeProjectRequest(BaseModel):
+    description: str
+    project_name: str

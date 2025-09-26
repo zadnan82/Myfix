@@ -1,19 +1,23 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 export default function Personal_WebsiteContactPage() {
+  const navigate = useNavigate();
+
   return (
     <>
       <nav className="bg-white shadow-sm border-b border-gray-200">
   <div className="max-w-6xl mx-auto px-4">
     <div className="flex justify-between items-center py-4">
       <div className="flex items-center">
-        <h1 className="text-xl font-bold text-gray-800">Brand</h1>
+        <Link to="/" className="text-xl font-bold text-gray-800 hover:text-blue-600 transition-colors duration-200">Brand</Link>
       </div>
       <div className="hidden md:flex space-x-1">
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Home</a>
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">About</a>
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Services</a>
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Contact</a>
+        <Link to="/" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Home</Link>
+        <Link to="/about" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">About</Link>
+        <Link to="/services" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Services</Link>
+        <Link to="/contact" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200">Contact</Link>
       </div>
       <div className="md:hidden">
         <button className="text-gray-700 hover:text-blue-600 focus:outline-none">
@@ -92,7 +96,7 @@ export default function Personal_WebsiteContactPage() {
       <button 
         type="button" 
         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-md transition-colors duration-200"
-         onClick={() => {const formData = {name: document.getElementById('cf-name').value, email: document.getElementById('cf-email').value, subject: document.getElementById('cf-subject').value, message: document.getElementById('cf-message').value}; window.sevdoAct('api:POST /api/echo|' + JSON.stringify(formData));}}
+         onClick={(event) => {const formData = {name: document.getElementById('cf-name').value, email: document.getElementById('cf-email').value, subject: document.getElementById('cf-subject').value, message: document.getElementById('cf-message').value}; const btn = event.target; btn.disabled = true; btn.textContent = 'Sending...';fetch('http://localhost:8000/api/contact', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(formData)}).then(response => response.json()).then(result => {console.log('Contact form response:', result); if (result.msg || result.message) {alert(result.msg || result.message); setTimeout(() => { navigate('/'); }, 2000);} btn.disabled = false; btn.textContent = 'Send Message';}).catch(error => {console.error('Contact form error:', error); alert('Error: Could not send message. Please try again.'); btn.disabled = false; btn.textContent = 'Send Message';});}}
       >
         Send Message
       </button>

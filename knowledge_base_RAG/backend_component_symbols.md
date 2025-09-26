@@ -17,3 +17,10 @@ List of the existing component backend symbols:
 - a: FastAPI logout all sessions endpoint
 - s: FastAPI list all sessions endpoint
 - k: FastAPI revoke session by ID endpoint
+- cfh: Contact form handler
+- lfh: Login form handler
+- rfh: Register form handler
+- emh: Email form handler
+- cha: Chat handler
+- nlh: Newsletter handler
+- abp: Admin blog posts

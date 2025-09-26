@@ -1,30 +1,31 @@
-# user_backend/main.py - FIXED VERSION
+# user_backend/app/main.py
 
-print("🚀 MAIN.PY LOADED - DEBUG TEST")
-
-import asyncio
-from datetime import datetime
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
-import httpx
-import uvicorn
-import os
-import logging
-import time
-
+from sqlalchemy.orm import Session  # ADD THIS IMPORT
+from user_backend.app.models import Project  # ADD THIS IMPORT
+from user_backend.app.services import template_generator  # noqa: F401 (imported for side-effects)
+from user_backend.app.db_setup import get_db, init_db
+from user_backend.app.core.security import get_current_active_user
 from user_backend.app.core.exceptions import (
     UserAlreadyExistsError,
     InvalidCredentialsError,
     ValidationError,
     DatabaseError,
 )
-from user_backend.app.core.security import get_current_active_user
-from user_backend.app.db_setup import get_db, init_db
-from user_backend.app.services import template_generator
-from user_backend.app.models import Project
-from sqlalchemy.orm import Session
+import logging
+import os
+import uvicorn
+import httpx
+from contextlib import asynccontextmanager
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter
+from pathlib import Path
+from typing import Dict
+from datetime import datetime
+# asyncio is imported elsewhere if needed; avoid unused import warnings
+print("🚀 MAIN.PY LOADED - DEBUG TEST")
+
 
 # Initialize logger
 try:
@@ -83,12 +84,14 @@ ALLOWED_ORIGINS = [
     "https://www.sevdo.se",
     "https://sevdo.se",
     "http://sevdo.se",
-    "https://sevdo2.vercel.app",
+    # Add Vercel domains (update with your actual Vercel URL)
+    "https://sevdo2.vercel.app",  # Common Vercel naming
 ]
 
 # Parse CORS_ORIGINS from environment variable if provided
 cors_origins_env = os.getenv("CORS_ORIGINS", "")
 if cors_origins_env:
+    # Split by comma and add each origin
     for origin in cors_origins_env.split(","):
         origin = origin.strip()
         if origin and origin not in ALLOWED_ORIGINS:
@@ -96,6 +99,7 @@ if cors_origins_env:
 
 # In development mode, add common development origins
 if os.getenv("SEVDO_ENV", "development") == "development":
+    # Don't use "*" with credentials=True, add specific development origins instead
     dev_origins = [
         "http://localhost:3000",
         "http://localhost:5173",
@@ -115,6 +119,144 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# -----------------------------------------------------------------------------
+# Projects browse & file read/write (for sevdo-preview-manager volume)
+# -----------------------------------------------------------------------------
+projects_router = APIRouter(prefix="/api/projects", tags=["Projects FS"])
+
+TEXT_EXT_ALLOWLIST = {
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".py",
+    ".md",
+    ".json",
+    ".css",
+    ".html",
+    ".yml",
+    ".yaml",
+    ".sh",
+    ".txt",
+}
+
+
+def _sanitize_and_resolve_path(raw_path: str) -> Path:
+    from user_backend.app.settings import settings
+    root = Path(settings.PROJECTS_ROOT).resolve()
+    p = Path(raw_path or "/").expanduser()
+    if str(p).strip() in {"/", ""}:
+        return root
+    if not p.is_absolute():
+        p = root / p
+    rp = p.resolve()
+    if not str(rp).startswith(str(root)):
+        raise HTTPException(
+            status_code=400, detail="Path outside PROJECTS_ROOT")
+    return rp
+
+
+@projects_router.get("/tree")
+async def list_tree(path: str = "/"):
+    base = _sanitize_and_resolve_path(path)
+    if not base.exists():
+        raise HTTPException(status_code=404, detail="Path not found")
+    if not base.is_dir():
+        raise HTTPException(status_code=400, detail="Path is not a directory")
+
+    nodes = []
+    try:
+        for entry in sorted(base.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+            try:
+                if entry.is_dir():
+                    nodes.append({
+                        "type": "dir",
+                        "name": entry.name,
+                        "path": str(entry),
+                        "childrenLoaded": False,
+                    })
+                else:
+                    stat = entry.stat()
+                    nodes.append({
+                        "type": "file",
+                        "name": entry.name,
+                        "path": str(entry),
+                        "size": stat.st_size,
+                        "mtime": int(stat.st_mtime),
+                    })
+            except Exception:
+                continue
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list directory: {e}")
+
+    return nodes
+
+
+@projects_router.get("/file")
+async def read_project_file(path: str):
+    p = _sanitize_and_resolve_path(path)
+    if not p.exists() or not p.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    ext = p.suffix.lower()
+    if ext not in TEXT_EXT_ALLOWLIST:
+        raise HTTPException(status_code=415, detail="Unsupported file type")
+    if p.stat().st_size > 2 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large")
+    try:
+        content = p.read_text(encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read file: {e}")
+    return Response(content, media_type="text/plain; charset=utf-8")
+
+
+@projects_router.put("/file")
+async def write_project_file(payload: Dict):
+    path = payload.get("path")
+    content = payload.get("content")
+    if not path or content is None:
+        raise HTTPException(
+            status_code=400, detail="path and content are required")
+    p = _sanitize_and_resolve_path(path)
+    ext = p.suffix.lower()
+    if ext not in TEXT_EXT_ALLOWLIST:
+        raise HTTPException(status_code=415, detail="Unsupported file type")
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(str(content), encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to write file: {e}")
+    return {"ok": True}
+
+
+app.include_router(projects_router)
+# FIXED: Register WebSocket router with better error handling
+print("🔧 DEBUG: WebSocket router registration...")
+try:
+    from user_backend.app.api.v1.websockets import router as websocket_router
+
+    app.include_router(
+        websocket_router, prefix="/api/v1/ws", tags=["WebSocket"])
+    print("✅ DEBUG: WebSocket router registered successfully!")
+    print(
+        f"✅ DEBUG: WebSocket routes available: {len(websocket_router.routes)}")
+    for route in websocket_router.routes:
+        print(
+            f"   - {route.path} ({route.methods if hasattr(route, 'methods') else 'WebSocket'})"
+        )
+except ImportError as import_error:
+    print(f"❌ DEBUG: WebSocket router import failed: {import_error}")
+    print(
+        "⚠️  This may be due to missing dependencies. WebSocket endpoints will not be available."
+    )
+except Exception as e:
+    print(f"❌ DEBUG: WebSocket router registration failed: {e}")
+    import traceback
+
+    traceback.print_exc()
 
 
 # Exception handlers
@@ -184,23 +326,31 @@ async def database_error_handler(request: Request, exc: DatabaseError):
 
 
 # =============================================================================
-# ROUTER REGISTRATION
+# DIRECT ROUTER IMPORTS AND REGISTRATION
 # =============================================================================
 
 # Track successful registrations
 registered_routers = []
 failed_routers = []
 
-# Core routers (required) - UPDATED WITH NEW REAL-TIME AI EDIT ROUTER
+# Core routers (required)
+# In your main.py, update the core_routers list:
+
 core_routers = [
     {"name": "auth", "prefix": "/api/v1/auth", "tags": ["Authentication"]},
     {"name": "projects", "prefix": "/api/v1/projects", "tags": ["Projects"]},
     {"name": "sevdo", "prefix": "/api/v1/sevdo", "tags": ["Sevdo Builder"]},
     {"name": "tokens", "prefix": "/api/v1/tokens", "tags": ["Tokens"]},
-    {"name": "templates", "prefix": "/api/v1/templates", "tags": ["Templates"]},
+    {"name": "templates", "prefix": "/api/v1/templates",
+        "tags": ["Templates"]},
     {"name": "ai", "prefix": "/api/v1/ai", "tags": ["AI Integration"]},
-    {"name": "llm_editor", "prefix": "/api/v1/llm-editor", "tags": ["LLM Editor"]},
-    {"name": "ai_edit", "prefix": "/api/v1/ai-edit", "tags": ["AI Editing"]},
+    {"name": "llm_editor", "prefix": "/api/v1/llm-editor",
+        "tags": ["LLM Editor"]},
+    {
+        "name": "ai_edit",
+        "prefix": "/api/v1/ai-edit",
+        "tags": ["AI Editing"],
+    },  # ADD THIS LINE
 ]
 
 # Enhanced routers (optional)
@@ -210,7 +360,8 @@ enhanced_routers = [
         "prefix": "/api/v1/analytics",
         "tags": ["Analytics & Reporting"],
     },
-    {"name": "system", "prefix": "/api/v1/system", "tags": ["System Monitoring"]},
+    {"name": "system", "prefix": "/api/v1/system",
+        "tags": ["System Monitoring"]},
     {
         "name": "user_preferences",
         "prefix": "/api/v1/preferences",
@@ -235,7 +386,8 @@ def register_router(router_config, required=True):
         # Check if already registered
         router_name = router_config["name"]
         if any(r["name"] == router_name for r in registered_routers):
-            logger.warning(f"⚠️  Router {router_name} already registered, skipping...")
+            logger.warning(
+                f"⚠️  Router {router_name} already registered, skipping...")
             return True
 
         # Import the router
@@ -247,13 +399,15 @@ def register_router(router_config, required=True):
         from fastapi import APIRouter
 
         if not isinstance(router, APIRouter):
-            raise ValueError(f"Expected APIRouter instance, got {type(router)}")
+            raise ValueError(
+                f"Expected APIRouter instance, got {type(router)}")
 
         # Include the router with explicit configuration
         app.include_router(
             router,
             prefix=router_config["prefix"],
             tags=router_config["tags"],
+            # Add this to ensure unique registration
             include_in_schema=True,
         )
 
@@ -301,13 +455,19 @@ def register_router(router_config, required=True):
             }
         )
 
-        logger.error(f"❌ Failed to register router {router_config['name']}: {str(e)}")
+        logger.error(
+            f"❌ Failed to register router {router_config['name']}: {str(e)}")
         return False
 
 
 def register_all_routers():
     """Register all routers with the FastAPI app"""
-    logger.info("🚀 Starting router registration section...")
+    logger.info("🚀 DEBUG: Starting router registration section...")
+    logger.info(f"🔍 DEBUG: Core routers count: {len(core_routers)}")
+    logger.info(f"🔍 DEBUG: Enhanced routers count: {len(enhanced_routers)}")
+    logger.info(
+        f"🔍 DEBUG: Enhanced routers list: {[r['name'] for r in enhanced_routers]}"
+    )
 
     # Register core routers
     logger.info("🔧 Registering core routers...")
@@ -317,38 +477,15 @@ def register_all_routers():
     # Register enhanced routers
     logger.info("⭐ Registering enhanced routers...")
     for router_config in enhanced_routers:
-        logger.info(f"🔄 Attempting to register {router_config['name']} router...")
+        logger.info(
+            f"🔄 Attempting to register {router_config['name']} router...")
         result = register_router(router_config, required=False)
-        logger.info(f"📊 Registration result for {router_config['name']}: {result}")
-
-    # MANUAL REGISTRATION FOR REAL-TIME AI EDITOR (CRITICAL FIX)
-    logger.info("🤖 Manually registering Real-Time AI Editor...")
-    try:
-        from user_backend.app.api.v1.realtime_ai_edit import router as realtime_router
-
-        app.include_router(
-            realtime_router,
-            prefix="/api/v1/realtime-ai-edit",
-            tags=["Real-Time AI Editor"],
-        )
-        logger.info("✅ Real-Time AI Editor router registered successfully!")
-
-        registered_routers.append(
-            {
-                "name": "realtime_ai_edit",
-                "prefix": "/api/v1/realtime-ai-edit",
-                "tags": ["Real-Time AI Editor"],
-                "type": "core",
-            }
-        )
-
-    except ImportError as e:
-        logger.error(f"❌ Failed to import realtime_ai_edit router: {e}")
-    except Exception as e:
-        logger.error(f"❌ Failed to register realtime_ai_edit router: {e}")
+        logger.info(
+            f"📊 Registration result for {router_config['name']}: {result}")
 
     # Log summary
-    core_registered = len([r for r in registered_routers if r["type"] == "core"])
+    core_registered = len(
+        [r for r in registered_routers if r["type"] == "core"])
     enhanced_registered = len(
         [r for r in registered_routers if r["type"] == "enhanced"]
     )
@@ -371,7 +508,10 @@ def register_all_routers():
     logger.info("✅ Router registration completed")
 
 
-# Execute router registration
+# =============================================================================
+# ROUTER REGISTRATION - Execute immediately when module loads
+# =============================================================================
+
 print("🚀 DEBUG: Executing router registration at module level...")
 try:
     register_all_routers()
@@ -379,37 +519,13 @@ try:
 except Exception as e:
     print(f"❌ DEBUG: Module-level router registration failed: {e}")
 
-
 # =============================================================================
 # API STATUS ENDPOINTS
 # =============================================================================
 
 
-@app.get("/api/status")
-async def api_status():
-    """Enhanced API status with router information"""
-    return {
-        "service": "SEVDO User Backend API",
-        "version": "2.0.0",
-        "status": "operational",
-        "timestamp": datetime.utcnow().isoformat(),
-        "registered_routers": len(registered_routers),
-        "failed_routers": len(failed_routers),
-        "routers": {
-            "registered": [
-                {"name": r["name"], "prefix": r["prefix"], "type": r["type"]}
-                for r in registered_routers
-            ],
-            "failed": [
-                {"name": f["name"], "error": f["error"], "required": f["required"]}
-                for f in failed_routers
-            ],
-        },
-    }
-
-
 # =============================================================================
-# BLOG API PROXY (FIX FOR 503 ERRORS)
+# ROOT ENDPOINTS
 # =============================================================================
 
 
@@ -428,29 +544,7 @@ async def proxy_blog_api(path: str, request: Request):
             generation_id = parts[-1] or parts[-2]
 
     if not generation_id:
-        # FALLBACK: Return sample blog data instead of 503
-        if path == "posts":
-            return {
-                "posts": [
-                    {
-                        "id": 1,
-                        "title": "Welcome to Your New Blog!",
-                        "content": "This is your first blog post. You can edit this content using the AI editor on the right.",
-                        "author": "SEVDO Admin",
-                        "created_at": "2024-01-01T00:00:00Z",
-                        "slug": "welcome-to-your-blog",
-                    },
-                    {
-                        "id": 2,
-                        "title": "Getting Started with SEVDO",
-                        "content": "Learn how to use the real-time AI editor to customize your website with simple natural language commands.",
-                        "author": "SEVDO Team",
-                        "created_at": "2024-01-02T00:00:00Z",
-                        "slug": "getting-started-with-sevdo",
-                    },
-                ]
-            }
-        return {"message": "Blog API working with sample data"}
+        raise HTTPException(status_code=404, detail="Blog backend not found")
 
     # Forward to generated backend on port 9001
     backend_url = f"http://localhost:9001/api/blog/{path}"
@@ -461,7 +555,7 @@ async def proxy_blog_api(path: str, request: Request):
         backend_url += f"?{query_params}"
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             if request.method == "GET":
                 response = await client.get(backend_url)
             elif request.method == "POST":
@@ -475,55 +569,46 @@ async def proxy_blog_api(path: str, request: Request):
                 headers=dict(response.headers),
             )
     except Exception as e:
-        logger.warning(f"Blog backend unavailable, returning sample data: {e}")
-        # Return sample data instead of 503
-        if path == "posts":
-            return {
-                "posts": [
-                    {
-                        "id": 1,
-                        "title": "Sample Blog Post",
-                        "content": "This is sample content while the backend is starting up.",
-                        "author": "System",
-                        "created_at": datetime.now().isoformat(),
-                        "slug": "sample-post",
-                    }
-                ]
-            }
-        return {"message": "Blog API temporary unavailable, showing sample data"}
-
-
-# =============================================================================
-# PREVIEW CONTAINER MANAGEMENT (EXISTING)
-# =============================================================================
+        raise HTTPException(
+            status_code=503, detail=f"Blog backend unavailable: {e}")
 
 
 @app.post("/api/v1/projects/{project_id}/preview")
 async def create_project_preview(
     project_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_active_user),
+    current_user=Depends(get_current_active_user),  # ADD THIS IF YOU HAVE AUTH
 ):
     """Create a live preview container for a project"""
     try:
+        # Get project details
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
+        # Verify user owns the project (if using authentication)
+        # if project.user_id != current_user.id:
+        #     raise HTTPException(status_code=403, detail="Access denied")
+
+        # Get the generated project path from project config
         project_path = project.config.get("output_directory")
         if not project_path:
-            raise HTTPException(status_code=400, detail="Project not generated yet")
+            raise HTTPException(
+                status_code=400, detail="Project not generated yet")
 
+        # Check if the project directory exists
         if not os.path.exists(project_path):
             raise HTTPException(
                 status_code=400, detail="Generated project files not found"
             )
 
+        # Call preview manager to create the container
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "http://preview-manager:8080/previews",
-                json={"project_id": str(project_id), "project_path": project_path},
-                timeout=30.0,
+                json={"project_id": str(project_id),
+                      "project_path": project_path},
+                timeout=30.0,  # 30 second timeout
             )
 
             if response.status_code != 200:
@@ -532,6 +617,7 @@ async def create_project_preview(
 
             preview_data = response.json()
 
+            # Update project with preview URL
             if "config" not in project.config:
                 project.config = {}
             project.config["preview_url"] = preview_data["url"]
@@ -547,7 +633,8 @@ async def create_project_preview(
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Preview manager timeout")
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="Preview manager unavailable")
+        raise HTTPException(
+            status_code=503, detail="Preview manager unavailable")
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to create preview: {str(e)}"
@@ -580,7 +667,8 @@ async def get_project_preview_status(project_id: str):
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Preview manager timeout")
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="Preview manager unavailable")
+        raise HTTPException(
+            status_code=503, detail="Preview manager unavailable")
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to get preview status: {str(e)}"
@@ -591,13 +679,18 @@ async def get_project_preview_status(project_id: str):
 async def stop_project_preview(
     project_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_active_user),
+    current_user=Depends(get_current_active_user),  # ADD THIS IF YOU HAVE AUTH
 ):
     """Stop a project preview"""
     try:
+        # Get project details
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
+
+        # Verify user owns the project (if using authentication)
+        # if project.user_id != current_user.id:
+        #     raise HTTPException(status_code=403, detail="Access denied")
 
         async with httpx.AsyncClient() as client:
             response = await client.delete(
@@ -608,8 +701,10 @@ async def stop_project_preview(
                 return {"message": "Preview was not running"}
 
             if response.status_code != 200:
-                raise HTTPException(status_code=500, detail="Failed to stop preview")
+                raise HTTPException(
+                    status_code=500, detail="Failed to stop preview")
 
+            # Update project config
             if "config" in project.config:
                 project.config["preview_status"] = "stopped"
                 db.commit()
@@ -619,9 +714,11 @@ async def stop_project_preview(
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Preview manager timeout")
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="Preview manager unavailable")
+        raise HTTPException(
+            status_code=503, detail="Preview manager unavailable")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to stop preview: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to stop preview: {str(e)}")
 
 
 @app.get("/api/v1/previews")
@@ -634,23 +731,80 @@ async def list_all_previews():
             )
 
             if response.status_code != 200:
-                raise HTTPException(status_code=500, detail="Failed to list previews")
+                raise HTTPException(
+                    status_code=500, detail="Failed to list previews")
 
             return response.json()
 
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Preview manager timeout")
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="Preview manager unavailable")
+        raise HTTPException(
+            status_code=503, detail="Preview manager unavailable")
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to list previews: {str(e)}"
         )
 
 
-# =============================================================================
-# ROOT ENDPOINTS
-# =============================================================================
+@app.post("/api/v1/previews/by-path")
+async def create_preview_by_path(payload: Dict, current_user=Depends(get_current_active_user)):
+    """Start a live preview for a directory path under PROJECTS_ROOT.
+
+    Request JSON: { "path": "/absolute/or/relative/path" }
+    Returns: preview manager data including a URL to open.
+    """
+    try:
+        raw_path = payload.get("path")
+        if not raw_path:
+            raise HTTPException(status_code=400, detail="path is required")
+
+        # Ensure the path is inside PROJECTS_ROOT
+        resolved = _sanitize_and_resolve_path(raw_path)
+        if not resolved.exists():
+            raise HTTPException(status_code=404, detail="Path not found")
+        if not resolved.is_dir():
+            # If a file was provided, preview its parent directory
+            resolved = resolved.parent
+
+        # Generate a stable preview ID derived from the relative path
+        from user_backend.app.settings import settings
+        import hashlib
+        root = Path(settings.PROJECTS_ROOT).resolve()
+        try:
+            rel = resolved.relative_to(root)
+        except Exception:
+            rel = resolved.name
+        rel_str = str(rel).replace("\\", "/")
+        preview_id = f"path-{hashlib.sha1(rel_str.encode('utf-8')).hexdigest()[:12]}"
+
+        # Call preview manager to create or return existing preview
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://preview-manager:8080/previews",
+                json={"project_id": preview_id, "project_path": str(resolved)},
+                timeout=30.0,
+            )
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Preview manager error: {response.text}",
+            )
+
+        preview_data = response.json()
+        return {"success": True, **preview_data}
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Preview manager timeout")
+    except httpx.ConnectError:
+        raise HTTPException(
+            status_code=503, detail="Preview manager unavailable")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create preview: {str(e)}")
 
 
 @app.get("/", tags=["Root"])

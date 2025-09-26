@@ -1,14 +1,8 @@
-mn(h(DevInsights),m(Home,Blog,About,Contact))
-
-ts(h(Get In Touch),t(Have a question, suggestion, or just want to say hello? I'd love to hear from you!))
-
-ts(h(Contact Information))
-ts(t(📧 Email: alex@devinsights.com))
-ts(t(📱 Twitter: @devinsights)) 
-ts(t(💼 LinkedIn: /in/alex-developer))
-ts(t(🌍 Location: San Francisco, CA))
+mn(h(DevInsights),m(Home,Blog,About,Contact,Admin))
 
 cf(h(Send Me a Message),t(Whether it's about a post, collaboration, or just to chat about development))
+
+ci{email=john@company.com, twitter=@johnsmith, linkedin=/in/johnsmith, location=New York, NY}
 
 qa(h(Frequently Asked Questions))
 
@@ -18,4 +12,4 @@ ts(h(🎯 Can you write about specific topics?),t(Absolutely! I love suggestions
 
 ts(h(🤝 Are you available for consulting or collaboration?),t(Yes, I'm open to discussing freelance projects and collaborations. Use the contact form above to get in touch.))
 
-cta{style=centered}(h(Stay Connected),t(Join the community and never miss an update),b(Subscribe to Newsletter))
+cta(h(Stay Connected),t(Join the community and never miss an update),b(Subscribe to Newsletter))

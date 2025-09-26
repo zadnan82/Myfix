@@ -1,53 +1,69 @@
 {
-  "name": "Blog Site Template",
-  "description": "Complete blog website template with multiple pages, built using SEVDO frontend compiler",
-  "version": "1.0.0",
+  "name": "Blog Site Template with Admin",
+  "description": "Complete blog website template with admin panel, built using SEVDO frontend compiler",
+  "version": "1.1.0",
   "category": "blog",
   "author": "SEVDO Team",
-  "tags": ["blog", "content", "articles", "personal", "professional"],
+  "tags": ["blog", "content", "articles", "personal", "professional", "admin", "cms"],
   
   "structure": {
     "backend": {
-      "description": "FastAPI backend with PostgreSQL database and authentication",
+      "description": "FastAPI backend with SQLite database, authentication, and admin API",
       "files": [
         "auth.py"
       ],
       "features": [
         "User authentication",
         "Database ORM with SQLAlchemy", 
-        "PostgreSQL support",
+        "SQLite support",
         "Password hashing",
         "Session management",
         "Blog post management",
         "Tag management",
-        "Search functionality"
+        "Search functionality",
+        "Newsletter subscription",
+        "Admin API endpoints",
+        "Admin dashboard",
+        "Bulk operations",
+        "Content management"
       ]
     },
     "frontend": {
-      "description": "SEVDO-compiled frontend pages",
+      "description": "SEVDO-compiled frontend pages with admin panel",
       "files": [
         "Home.s",
         "Blog.s", 
         "Article.s",
         "About.s",
-        "Contact.s"
+        "Contact.s",
+        "Newsletter.s",
+        "AdminLogin.s",
+        "Admin.s",
+        "AdminEditor.s",
+        "AdminPosts.s"
       ],
       "pages": {
         "Home.s": "Homepage with latest posts, hero section, and newsletter signup",
         "Blog.s": "Complete article listing with search, filters, and pagination",
         "Article.s": "Individual article page with sharing and related posts",
         "About.s": "About the author/blog with personal story and testimonials",
-        "Contact.s": "Contact information, form, and FAQ section"
+        "Contact.s": "Contact information, form, and FAQ section",
+        "Newsletter.s": "Newsletter subscription page with signup form",
+        "AdminLogin.s": "Admin login page with authentication form",
+        "Admin.s": "Admin dashboard with statistics and quick actions",
+        "AdminEditor.s": "Blog post editor with live preview and auto-save",
+        "AdminPosts.s": "Post management with bulk operations and filters"
       }
     }
   },
   
   "required_prefabs": [
-    "mn", "ho", "bl", "fl", "tt", "cta", "cf", "al", "h", "t", "b"
+    "mn", "ho", "bl", "fl", "tt", "cta", "cf", "al", "ns", "h", "t", "b",
+    "lf", "adb", "bpe", "apl"
   ],
   
   "required_endpoints": [
-    "r", "l", "m", "bp", "bt", "bg", "bs"
+    "r", "l", "m", "bp", "bt", "bg", "bs", "nlh", "lfh", "abp"
   ],
   
   "navigation": {
@@ -56,28 +72,197 @@
       "blog": "/blog",
       "article": "/article",
       "about": "/about",
-      "contact": "/contact"
+      "contact": "/contact",
+      "newsletter": "/newsletter",
+      "admin_login": "/admin/login",
+      "admin": "/admin",
+      "admin_posts": "/admin/posts",
+      "admin_editor": "/admin/editor"
     },
     "actions": {
       "hero_primary_cta": "/blog",
       "hero_secondary_cta": "/contact",
       "contact_form_success": "/",
       "blog_read_more": "/article",
-      "cta_primary": "/blog",
+      "cta_primary": "/newsletter",
       "cta_secondary": "/contact",
-      "menu_brand_link": "/"
+      "menu_brand_link": "/",
+      "newsletter_success": "/",
+      "admin_link": "/admin/login",
+      "admin_back": "/admin",
+      "admin_create_post": "/admin/editor",
+      "admin_edit_post": "/admin/editor",
+      "admin_manage_posts": "/admin/posts",
+      "login_success": "/admin"
     }
+  },
+
+  "routing": {
+    "static_routes": {
+      "Home": "/",
+      "Blog": "/blog", 
+      "About": "/about",
+      "Contact": "/contact",
+      "Newsletter": "/newsletter",
+      "AdminLogin": "/admin/login",
+      "Admin": "/admin",
+      "AdminPosts": "/admin/posts",
+      "AdminEditor": "/admin/editor"
+    },
+    "dynamic_routes": {
+      "Article": ["/article/:slug", "/article/:id"],
+      "AdminEditor": ["/admin/editor/:id"]
+    },
+    "protected_routes": {
+      "Admin": {
+        "component": "Admin",
+        "path": "/admin",
+        "requiresAuth": true,
+        "redirectTo": "/admin/login"
+      },
+      "AdminPosts": {
+        "component": "AdminPosts", 
+        "path": "/admin/posts",
+        "requiresAuth": true,
+        "redirectTo": "/admin/login"
+      },
+      "AdminEditor": {
+        "component": "AdminEditor",
+        "path": "/admin/editor/:id?",
+        "requiresAuth": true,
+        "redirectTo": "/admin/login"
+      }
+    },
+    "fallback_routes": {
+      "404": {
+        "component": "NotFound",
+        "path": "*"
+      }
+    },
+    "url_patterns": {
+      "blog_search": "/blog?q=:query",
+      "blog_tag": "/blog?tag=:tag",
+      "blog_category": "/blog?category=:category",
+      "article_by_slug": "/article/:slug",
+      "article_by_id": "/article/:id",
+      "admin_login": "/admin/login",
+      "admin_dashboard": "/admin",
+      "admin_posts_list": "/admin/posts",
+      "admin_create_post": "/admin/editor",
+      "admin_edit_post": "/admin/editor/:id"
+    }
+  },
+
+  "api_integration": {
+    "endpoints": {
+      "blog_posts": {
+        "path": "/api/blog/posts",
+        "method": "GET",
+        "params": ["page", "limit", "published", "author_id", "tag", "search", "sort", "include_content"]
+      },
+      "blog_search": {
+        "path": "/api/blog/search",
+        "method": "GET",
+        "params": ["q", "page", "limit", "sort"]
+      },
+      "blog_tags": {
+        "path": "/api/blog/tags",
+        "method": "GET",
+        "params": ["sort", "limit", "min_posts"]
+      },
+      "blog_post_detail": {
+        "path": "/api/blog/posts/{id}",
+        "method": "GET",
+        "params": ["id"]
+      },
+      "newsletter_subscribe": {
+        "path": "/api/newsletter/subscribe",
+        "method": "POST",
+        "body": ["email", "name"]
+      },
+      "login": {
+        "path": "/api/login",
+        "method": "POST",
+        "body": ["username", "password", "remember_me"]
+      },
+      "admin_blog_posts": {
+        "path": "/api/admin/blog/posts",
+        "method": "GET",
+        "params": ["page", "limit", "published", "author_id", "search", "sort"],
+        "requiresAuth": true
+      },
+      "admin_create_post": {
+        "path": "/api/admin/blog/posts",
+        "method": "POST", 
+        "body": ["title", "content", "excerpt", "featured_image", "published", "tags"],
+        "requiresAuth": true
+      },
+      "admin_update_post": {
+        "path": "/api/admin/blog/posts/{id}",
+        "method": "PUT",
+        "body": ["title", "content", "excerpt", "featured_image", "published", "tags"],
+        "requiresAuth": true
+      },
+      "admin_delete_post": {
+        "path": "/api/admin/blog/posts/{id}",
+        "method": "DELETE",
+        "requiresAuth": true
+      },
+      "admin_toggle_publish": {
+        "path": "/api/admin/blog/posts/{id}/publish",
+        "method": "PATCH",
+        "requiresAuth": true
+      }
+    },
+    "blog_integration": {
+      "auto_search": true,
+      "search_endpoint": "/api/blog/search",
+      "filter_endpoint": "/api/blog/tags/{tag_name}/posts",
+      "posts_endpoint": "/api/blog/posts"
+    },
+    "admin_integration": {
+      "dashboard_endpoint": "/api/admin/blog/posts",
+      "stats_endpoint": "/api/admin/stats",
+      "bulk_operations": true,
+      "auto_save": true,
+      "live_preview": true
+    }
+  },
+
+  "authentication": {
+    "enabled": true,
+    "login_endpoint": "/api/login",
+    "logout_endpoint": "/api/logout",
+    "session_check": "/api/me",
+    "protected_paths": ["/admin", "/admin/*"],
+    "redirect_after_login": "/admin",
+    "redirect_after_logout": "/",
+    "session_storage": "cookie"
+  },
+
+  "seo_config": {
+    "site_title": "DevInsights",
+    "meta_description": "Insights and tutorials about web development, programming, and technology",
+    "keywords": ["web development", "programming", "javascript", "react", "tutorials"],
+    "article_title_template": "{article_title} | DevInsights",
+    "blog_title": "All Articles | DevInsights",
+    "admin_title": "Admin Panel | DevInsights"
   },
   
   "customization": {
     "blog_title": "DevInsights",
     "author_name": "Alex",
-    "author_email": "alex@devinsights.com",
+    "author_email": "alex@devinsights.com", 
+    "admin_name": "Administrator",
     "social_links": {
       "twitter": "@devinsights",
       "linkedin": "/in/alex-developer"
     },
-    "location": "San Francisco, CA"
+    "location": "San Francisco, CA",
+    "theme": {
+      "primary_color": "#3B82F6",
+      "admin_theme": "professional"
+    }
   },
   
   "features": [
@@ -94,8 +279,50 @@
     "User authentication",
     "Blog API endpoints",
     "Tag management",
-    "Full-text search"
+    "Full-text search",
+    "Email newsletter system",
+    "URL-based search state",
+    "Dynamic article routing",
+    "Browser navigation support",
+    "Admin dashboard",
+    "Post editor with auto-save",
+    "Bulk post operations",
+    "Live post preview",
+    "Draft management",
+    "Publication scheduling",
+    "Content analytics",
+    "User management",
+    "Security features"
   ],
+  
+  "admin_features": {
+    "dashboard": {
+      "statistics": true,
+      "recent_posts": true,
+      "quick_actions": true,
+      "system_status": true
+    },
+    "post_editor": {
+      "wysiwyg": true,
+      "auto_save": true,
+      "live_preview": true,
+      "word_count": true,
+      "reading_time": true,
+      "slug_generation": true,
+      "tag_management": true,
+      "featured_images": true,
+      "draft_support": true
+    },
+    "post_management": {
+      "bulk_operations": true,
+      "advanced_filtering": true,
+      "search": true,
+      "pagination": true,
+      "sorting": true,
+      "status_toggle": true,
+      "publication_control": true
+    }
+  },
   
   "installation": {
     "backend": "Copy auth.py and configure database credentials",

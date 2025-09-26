@@ -1,60 +1,64 @@
-// user_frontend/src/App.jsx - UPDATED WITH REAL-TIME AI EDITOR INTEGRATION
+// user_frontend/src/App.jsx - UPDATED WITH LIVE PREVIEW ROUTE
 
-import React, { useEffect, useState } from 'react';
-import { Wifi, WifiOff } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { Wifi, WifiOff } from "lucide-react";
 
 // Core components
-import ErrorBoundary from './components/ErrorBoundary';
-import { ToastProvider } from './components/ui/Toast';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import LoadingScreen from './components/LoadingScreen';
-import ErrorScreen from './components/ErrorScreen';
+import ErrorBoundary from "./components/ErrorBoundary";
+import { ToastProvider } from "./components/ui/Toast";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import LoadingScreen from "./components/LoadingScreen";
+import ErrorScreen from "./components/ErrorScreen";
 
 // Pages
-import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
-import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
-import DashboardPage from './pages/dashboard/DashboardPage';
-import TemplateLivePreviewPage from './pages/projects/TemplateLivePreviewPage'; 
-import LLMEditorPage from './pages/LLMEditor';
+import LoginPage from "./pages/auth/LoginPage";
+import RegisterPage from "./pages/auth/RegisterPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import DashboardPage from "./pages/dashboard/DashboardPage";
+import TemplateLivePreviewPage from "./pages/projects/TemplateLivePreviewPage"; // NEW IMPORT
+import TemplateBrowserPage from "./pages/projects/TemplateBrowserPage"; // NEW IMPORT
+import LLMEditorPage from "./pages/LLMEditor";
+import EditWithLLMBatchPage from "./pages/projects/EditWithLLM";
+import ProjectsLandingPage from "./pages/projects/ProjectsLandingPage";
 
 // Services
-import { apiClient } from './services/api';
-import TemplateBrowserPage from './pages/projects/TemplateBrowserPage';
+import { apiClient } from "./services/api";
 
-// Route constants - NO CHANGES NEEDED
+// Route constants - UPDATED
 export const ROUTES = {
-  LOGIN: '/login',
-  REGISTER: '/register',
-  FORGOT_PASSWORD: '/forgot-password',
-  DASHBOARD: '/dashboard',
-  TEMPLATE_BROWSER: '/templates',
-  TEMPLATE_LIVE_PREVIEW: '/templates/:templateId/live-preview',
-  LLM_EDITOR: '/llm-editor',
-  HOME: '/'
+  LOGIN: "/login",
+  REGISTER: "/register",
+  FORGOT_PASSWORD: "/forgot-password",
+  DASHBOARD: "/dashboard",
+  PROJECTS: "/edit-with-llm",
+  PROJECT_EDIT_WITH_LLM: "/edit-with-llm/:projectId",
+  TEMPLATE_BROWSER: "/templates", // NEW ROUTE
+  TEMPLATE_LIVE_PREVIEW: "/templates/:templateId/live-preview", // NEW ROUTE
+  LLM_EDITOR: "/llm-editor",
+  HOME: "/",
 };
 
-// Browser history-based routing hook - NO CHANGES NEEDED
+// Browser history-based routing hook
 const useBrowserRouter = () => {
   const [currentPath, setCurrentPath] = useState(() => {
     const path = window.location.pathname;
     const searchParams = new URLSearchParams(window.location.search);
-    const redirectAfterLogin = searchParams.get('redirect');
-    
+    const redirectAfterLogin = searchParams.get("redirect");
+
     if (redirectAfterLogin) {
-      sessionStorage.setItem('redirectAfterLogin', redirectAfterLogin);
+      sessionStorage.setItem("redirectAfterLogin", redirectAfterLogin);
     }
-    
+
     return path;
   });
 
   const navigate = (path, replace = false) => {
     setCurrentPath(path);
-    
+
     if (replace) {
-      window.history.replaceState(null, '', path);
+      window.history.replaceState(null, "", path);
     } else {
-      window.history.pushState(null, '', path);
+      window.history.pushState(null, "", path);
     }
   };
 
@@ -65,7 +69,7 @@ const useBrowserRouter = () => {
         url.searchParams.set(key, value);
       }
     });
-    
+
     const fullPath = url.pathname + url.search;
     navigate(fullPath, replace);
   };
@@ -75,60 +79,66 @@ const useBrowserRouter = () => {
       setCurrentPath(window.location.pathname);
     };
 
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  return { 
-    currentPath, 
-    navigate, 
+  return {
+    currentPath,
+    navigate,
     navigateWithQuery,
-    searchParams: new URLSearchParams(window.location.search)
+    searchParams: new URLSearchParams(window.location.search),
   };
 };
 
-// Route matcher utility - NO CHANGES NEEDED
+// Route matcher utility - ENHANCED FOR DYNAMIC ROUTES
 const matchRoute = (currentPath, routePath) => {
+  // Exact match for simple routes
   if (currentPath === routePath) return { match: true, params: {} };
-  
-  if (currentPath === '/' || currentPath === '') {
+
+  // Handle root path
+  if (currentPath === "/" || currentPath === "") {
     return { match: routePath === ROUTES.HOME, params: {} };
   }
-  
-  const currentSegments = currentPath.split('/').filter(Boolean);
-  const routeSegments = routePath.split('/').filter(Boolean);
-  
+
+  // Handle dynamic routes
+  const currentSegments = currentPath.split("/").filter(Boolean);
+  const routeSegments = routePath.split("/").filter(Boolean);
+
   if (currentSegments.length !== routeSegments.length) {
     return { match: false, params: {} };
   }
-  
+
   const params = {};
   for (let i = 0; i < routeSegments.length; i++) {
     const routeSegment = routeSegments[i];
     const currentSegment = currentSegments[i];
-    
-    if (routeSegment.startsWith(':')) {
+
+    if (routeSegment.startsWith(":")) {
+      // Dynamic segment
       params[routeSegment.slice(1)] = currentSegment;
     } else if (routeSegment !== currentSegment) {
       return { match: false, params: {} };
     }
   }
-  
+
   return { match: true, params };
 };
 
-// 404 Not Found component - NO CHANGES NEEDED
+// 404 Not Found component
 const NotFoundPage = ({ onNavigateHome }) => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
     <div className="max-w-md w-full text-center">
       <div className="mb-8">
         <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
-        <h2 className="text-2xl font-semibold text-gray-700 mb-2">Page Not Found</h2>
+        <h2 className="text-2xl font-semibold text-gray-700 mb-2">
+          Page Not Found
+        </h2>
         <p className="text-gray-600 mb-8">
           The page you're looking for doesn't exist or has been moved.
         </p>
       </div>
-      
+
       <button
         onClick={onNavigateHome}
         className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
@@ -139,7 +149,7 @@ const NotFoundPage = ({ onNavigateHome }) => (
   </div>
 );
 
-// Offline detection component - NO CHANGES NEEDED
+// Offline detection component
 const OfflineIndicator = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -147,12 +157,12 @@ const OfflineIndicator = () => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
@@ -170,80 +180,122 @@ const OfflineIndicator = () => {
   );
 };
 
-// Connection status component - NO CHANGES NEEDED
+// Connection status component
 const ConnectionStatus = () => {
-  if (process.env.NODE_ENV === 'development') {
+  // Disable in development since you're running locally
+  if (process.env.NODE_ENV === "development") {
     return null;
   }
-  
+
+  // Production version would go here
   return null;
 };
 
-// Main Router Component - ONLY MINOR UPDATES NEEDED
-const MainRouter = () => { 
-  const { isAuthenticated, isLoading, isError, error, retry, logout } = useAuth();
-  const { currentPath, navigate, navigateWithQuery, searchParams } = useBrowserRouter();
+// Main Router Component (inside AuthProvider) - UPDATED WITH NEW ROUTE
+const MainRouter = () => {
+  const { isAuthenticated, isLoading, isError, error, retry, logout } =
+    useAuth();
+  const { currentPath, navigate, navigateWithQuery, searchParams } =
+    useBrowserRouter();
 
   const handleLogout = async () => {
     try {
       await logout();
+      // Navigate to login after successful logout
       navigate(ROUTES.LOGIN, true);
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error("Logout failed:", error);
+      // Still navigate to login even if logout fails
       navigate(ROUTES.LOGIN, true);
     }
   };
 
-  // Route protection and redirection logic - NO CHANGES NEEDED
+  // Route protection and redirection logic - UPDATED
   useEffect(() => {
     if (isLoading) return;
 
-    const publicRoutes = [ROUTES.LOGIN, ROUTES.REGISTER, ROUTES.FORGOT_PASSWORD];
-    const protectedRoutes = [ROUTES.DASHBOARD, ROUTES.TEMPLATE_BROWSER, ROUTES.TEMPLATE_LIVE_PREVIEW, ROUTES.LLM_EDITOR];
-    
-    const allRoutes = [...publicRoutes, ...protectedRoutes, ROUTES.HOME];
-    const currentRouteMatch = allRoutes.some(route => matchRoute(currentPath, route).match);
+    const publicRoutes = [
+      ROUTES.LOGIN,
+      ROUTES.REGISTER,
+      ROUTES.FORGOT_PASSWORD,
+    ];
+    const protectedRoutes = [
+      ROUTES.DASHBOARD,
+      ROUTES.PROJECTS,
+      ROUTES.PROJECT_EDIT_WITH_LLM,
+      ROUTES.TEMPLATE_BROWSER,
+      ROUTES.TEMPLATE_LIVE_PREVIEW,
+      ROUTES.LLM_EDITOR,
+    ];
 
-    if (!currentRouteMatch && currentPath !== '/') {
-      console.log('Unknown route, showing 404');
+    // Check if current path matches any known route
+    const allRoutes = [...publicRoutes, ...protectedRoutes, ROUTES.HOME];
+    const currentRouteMatch = allRoutes.some(
+      (route) => matchRoute(currentPath, route).match
+    );
+
+    // Handle unknown routes (404)
+    if (!currentRouteMatch && currentPath !== "/") {
+      console.log("Unknown route, showing 404");
       return;
     }
 
-    if (currentPath === '/' || currentPath === '') {
+    // Handle root path
+    if (currentPath === "/" || currentPath === "") {
       const defaultRoute = isAuthenticated ? ROUTES.DASHBOARD : ROUTES.LOGIN;
       navigate(defaultRoute, true);
       return;
     }
 
-    if (!isAuthenticated && protectedRoutes.some(route => matchRoute(currentPath, route).match)) {
-      console.log('Not authenticated, redirecting to login');
+    // Redirect unauthenticated users from protected routes
+    if (
+      !isAuthenticated &&
+      protectedRoutes.some((route) => matchRoute(currentPath, route).match)
+    ) {
+      console.log("Not authenticated, redirecting to login");
       navigateWithQuery(ROUTES.LOGIN, { redirect: currentPath }, true);
       return;
     }
 
-    if (isAuthenticated && publicRoutes.some(route => matchRoute(currentPath, route).match)) {
-      console.log('Already authenticated, redirecting to dashboard');
-      
-      const redirectUrl = sessionStorage.getItem('redirectAfterLogin') || searchParams.get('redirect');
+    // Redirect authenticated users from auth pages
+    if (
+      isAuthenticated &&
+      publicRoutes.some((route) => matchRoute(currentPath, route).match)
+    ) {
+      console.log("Already authenticated, redirecting to dashboard");
+
+      const redirectUrl =
+        sessionStorage.getItem("redirectAfterLogin") ||
+        searchParams.get("redirect");
       if (redirectUrl && redirectUrl !== currentPath) {
-        sessionStorage.removeItem('redirectAfterLogin');
+        sessionStorage.removeItem("redirectAfterLogin");
         navigate(redirectUrl, true);
       } else {
         navigate(ROUTES.DASHBOARD, true);
       }
     }
-  }, [isAuthenticated, isLoading, currentPath, navigate, navigateWithQuery, searchParams]);
+  }, [
+    isAuthenticated,
+    isLoading,
+    currentPath,
+    navigate,
+    navigateWithQuery,
+    searchParams,
+  ]);
 
-  // Navigation handlers - NO CHANGES NEEDED
+  // Navigation handlers
   const handleSwitchToLogin = () => navigate(ROUTES.LOGIN);
   const handleSwitchToRegister = () => navigate(ROUTES.REGISTER);
   const handleSwitchToForgot = () => navigate(ROUTES.FORGOT_PASSWORD);
-  const handleNavigateHome = () => navigate(isAuthenticated ? ROUTES.DASHBOARD : ROUTES.LOGIN);
-  
+  const handleNavigateHome = () =>
+    navigate(isAuthenticated ? ROUTES.DASHBOARD : ROUTES.LOGIN);
+
   const handleLoginSuccess = () => {
-    const redirectUrl = sessionStorage.getItem('redirectAfterLogin') || searchParams.get('redirect');
+    const redirectUrl =
+      sessionStorage.getItem("redirectAfterLogin") ||
+      searchParams.get("redirect");
     if (redirectUrl && redirectUrl !== ROUTES.LOGIN) {
-      sessionStorage.removeItem('redirectAfterLogin');
+      sessionStorage.removeItem("redirectAfterLogin");
       navigate(redirectUrl, true);
     } else {
       navigate(ROUTES.DASHBOARD, true);
@@ -252,37 +304,48 @@ const MainRouter = () => {
 
   const handleRegisterSuccess = () => navigate(ROUTES.LOGIN);
 
+  // NEW: Navigation handler for live preview
   const handleNavigateLivePreview = (template) => {
     const previewPath = `/templates/${template.id}/live-preview`;
     navigate(previewPath);
   };
 
+  // NEW: Navigation handler for template browser
   const handleNavigateTemplateBrowser = () => {
     navigate(ROUTES.TEMPLATE_BROWSER);
   };
 
+  // NEW: Navigation handler to go back to dashboard
   const handleBackToDashboard = () => {
     navigate(ROUTES.DASHBOARD);
   };
 
-  // Loading state - NO CHANGES NEEDED
+  // Loading state
   if (isLoading) {
     return <LoadingScreen message="Initializing..." />;
   }
 
-  // Error state - NO CHANGES NEEDED
+  // Error state
   if (isError) {
     return <ErrorScreen error={error} onRetry={retry} />;
   }
 
-  // Route matching and rendering - NO CHANGES NEEDED
+  // Route matching and rendering - UPDATED WITH NEW ROUTE
   const loginMatch = matchRoute(currentPath, ROUTES.LOGIN);
   const registerMatch = matchRoute(currentPath, ROUTES.REGISTER);
   const forgotMatch = matchRoute(currentPath, ROUTES.FORGOT_PASSWORD);
   const dashboardMatch = matchRoute(currentPath, ROUTES.DASHBOARD);
-  const templateBrowserMatch = matchRoute(currentPath, ROUTES.TEMPLATE_BROWSER);
-  const livePreviewMatch = matchRoute(currentPath, ROUTES.TEMPLATE_LIVE_PREVIEW);
+  const projectsMatch = matchRoute(currentPath, ROUTES.PROJECTS);
+  const templateBrowserMatch = matchRoute(currentPath, ROUTES.TEMPLATE_BROWSER); // NEW
+  const livePreviewMatch = matchRoute(
+    currentPath,
+    ROUTES.TEMPLATE_LIVE_PREVIEW
+  ); // NEW
   const llmEditorMatch = matchRoute(currentPath, ROUTES.LLM_EDITOR);
+  const projectEditWithLLMMatch = matchRoute(
+    currentPath,
+    ROUTES.PROJECT_EDIT_WITH_LLM
+  );
 
   if (loginMatch.match) {
     return (
@@ -304,48 +367,55 @@ const MainRouter = () => {
   }
 
   if (forgotMatch.match) {
-    return (
-      <ForgotPasswordPage
-        onSwitchToLogin={handleSwitchToLogin}
-      />
-    );
+    return <ForgotPasswordPage onSwitchToLogin={handleSwitchToLogin} />;
   }
 
   if (dashboardMatch.match) {
     return (
-      <DashboardPage 
+      <DashboardPage
         onLogout={handleLogout}
-        onNavigateLivePreview={handleNavigateLivePreview}
-        onNavigateTemplateBrowser={handleNavigateTemplateBrowser}
+        onNavigateLivePreview={handleNavigateLivePreview} // Pass navigation handler
+        onNavigateTemplateBrowser={handleNavigateTemplateBrowser} // Pass template browser handler
       />
     );
   }
 
-  // THE MAIN CHANGE: TemplateBrowserPage now includes the real-time AI editor
+  if (projectsMatch.match) {
+    // Show projects list at /edit-with-llm to select an active project
+    return (
+      <ProjectsLandingPage
+        onBack={() => navigate(ROUTES.DASHBOARD)}
+        navigate={navigate}
+      />
+    );
+  }
+
   if (templateBrowserMatch.match) {
     return (
       <TemplateBrowserPage
         onBack={() => navigate(ROUTES.DASHBOARD)}
         onSelectTemplate={(template) => {
-          console.log('Template selected from browser:', template);
+          // Handle template selection - could navigate to project creation
+          console.log("Template selected from browser:", template);
+          // For now, go back to dashboard
           navigate(ROUTES.DASHBOARD);
         }}
         navigate={navigate}
-        // The real-time AI editor is already integrated into TemplateBrowserPage
-        // No additional props needed - it will show automatically after generation
       />
     );
   }
 
   if (livePreviewMatch.match) {
     const { templateId } = livePreviewMatch.params;
-    
+
     return (
       <TemplateLivePreviewPage
         templateId={templateId}
         onBack={() => navigate(ROUTES.DASHBOARD)}
         onSelectTemplate={(template) => {
-          console.log('Template selected from live preview:', template);
+          // Handle template selection
+          console.log("Template selected from live preview:", template);
+          // Navigate to project creation with this template
           navigate(`/projects/create?template=${template.id}`);
         }}
       />
@@ -353,63 +423,84 @@ const MainRouter = () => {
   }
 
   if (llmEditorMatch.match) {
+    return <LLMEditorPage onBack={() => navigate(ROUTES.DASHBOARD)} />;
+  }
+
+  if (projectEditWithLLMMatch.match) {
+    const { projectId } = projectEditWithLLMMatch.params;
     return (
-      <LLMEditorPage 
-        onBack={() => navigate(ROUTES.DASHBOARD)}
+      <EditWithLLMBatchPage
+        onBack={() => navigate(ROUTES.PROJECTS)}
+        projectId={projectId}
       />
     );
   }
 
-  if (currentPath === '/' || currentPath === '') {
+  // Handle root path during loading/auth check
+  if (currentPath === "/" || currentPath === "") {
     return <LoadingScreen message="Redirecting..." />;
   }
 
+  // 404 for unknown routes
   return <NotFoundPage onNavigateHome={handleNavigateHome} />;
 };
 
-// Root App component - NO CHANGES NEEDED
+// Root App component
 const App = () => {
+  // Global error handler for unhandled promise rejections
   useEffect(() => {
     const handleUnhandledRejection = (event) => {
-      console.error('Unhandled promise rejection:', event.reason);
+      console.error("Unhandled promise rejection:", event.reason);
       event.preventDefault();
     };
 
     const handleError = (event) => {
-      console.error('Global error:', event.error);
+      console.error("Global error:", event.error);
     };
 
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
-    window.addEventListener('error', handleError);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    window.addEventListener("error", handleError);
 
     return () => {
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
-      window.removeEventListener('error', handleError);
+      window.removeEventListener(
+        "unhandledrejection",
+        handleUnhandledRejection
+      );
+      window.removeEventListener("error", handleError);
     };
   }, []);
 
+  // Performance monitoring
   useEffect(() => {
-    if (typeof window === 'undefined' || !('performance' in window)) return;
+    if (typeof window === "undefined" || !("performance" in window)) return;
 
     const performanceTimer = setTimeout(() => {
       try {
-        const navigation = performance.getEntriesByType('navigation')[0];
-        
-        if (navigation && navigation.domContentLoadedEventEnd && navigation.navigationStart) {
-          const domContentLoaded = Math.round(navigation.domContentLoadedEventEnd - navigation.navigationStart);
-          const pageLoadComplete = Math.round(navigation.loadEventEnd - navigation.navigationStart);
+        const navigation = performance.getEntriesByType("navigation")[0];
+
+        if (
+          navigation &&
+          navigation.domContentLoadedEventEnd &&
+          navigation.navigationStart
+        ) {
+          const domContentLoaded = Math.round(
+            navigation.domContentLoadedEventEnd - navigation.navigationStart
+          );
+          const pageLoadComplete = Math.round(
+            navigation.loadEventEnd - navigation.navigationStart
+          );
 
           if (domContentLoaded > 0 && pageLoadComplete > 0) {
-            if (process.env.NODE_ENV === 'development') {
-              console.group('Performance Metrics');
-              console.log('DOM Content Loaded:', domContentLoaded, 'ms');
-              console.log('Page Load Complete:', pageLoadComplete, 'ms');
+            if (process.env.NODE_ENV === "development") {
+              console.group("Performance Metrics");
+              console.log("DOM Content Loaded:", domContentLoaded, "ms");
+              console.log("Page Load Complete:", pageLoadComplete, "ms");
               console.groupEnd();
             }
           }
         }
       } catch (error) {
-        console.warn('Performance metrics collection failed:', error);
+        console.warn("Performance metrics collection failed:", error);
       }
     }, 1000);
 
@@ -417,7 +508,7 @@ const App = () => {
   }, []);
 
   return (
-    <ErrorBoundary errorMetadata={{ component: 'App', version: '2.0.0' }}>
+    <ErrorBoundary errorMetadata={{ component: "App", version: "2.0.0" }}>
       <ToastProvider maxToasts={5}>
         <AuthProvider>
           <div className="App">

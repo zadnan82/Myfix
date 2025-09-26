@@ -239,6 +239,13 @@ class SevdoIntegrator:
             # Generate other React files
             self._generate_react_files(frontend_output, template_name)
 
+            s_output_dir = frontend_output / ".s"
+            s_output_dir.mkdir(exist_ok=True)
+            for s_file in frontend_dir.glob("*.s"):
+                dest_file = s_output_dir / s_file.name
+                shutil.copy2(s_file, dest_file)
+                print(f"   ✓ Copied {s_file.name} to frontend/.s/")
+
             print(f"✅ Frontend generated: {len(components)} components")
 
             if self._build_react_app(frontend_output):
@@ -357,6 +364,17 @@ class SevdoIntegrator:
             else:
                 print(f"   ⚠️  Warning: {schemas_source} not found")
 
+            # Copy .s files from template backend to output backend/.s/
+            backend_dir = self.templates_dir / template_name / "backend"
+            if backend_dir.exists():
+                s_output_dir = backend_output / ".s"
+                s_output_dir.mkdir(exist_ok=True)
+                for s_file in backend_dir.glob("*.s"):
+                    dest_file = s_output_dir / s_file.name
+                    shutil.copy2(s_file, dest_file)
+                    print(f"   ✓ Copied {s_file.name} to backend/.s/")
+
+            # Get required endpoints from template config AND auto-detected handlers
             # Get required endpoints from template config AND auto-detected handlers
             config_endpoints = config.get("required_endpoints", [])
             auto_detected_endpoints = self.get_required_backend_handlers(template_name)

@@ -2,25 +2,24 @@ from typing import List, Dict, Any
 import os
 from pathlib import Path
 import logging
-import re
 
 import requests
 import json
+from user_backend.app.core.files import safe_write_file
 
-from .coding_agent import solve_subtask
-from .rag_integration import AgentRAGService
+from agent_system.coding_agent import solve_subtask
+from agent_system.rag_integration import AgentRAGService
 
 logger = logging.getLogger(__name__)
 
 
-def discover_sevdo_files() -> Dict[str, str]:
+def discover_sevdo_files(project_name: str) -> Dict[str, str]:
     """Discover existing .s files in templates directory for context-aware planning."""
-    project_root = Path(__file__).parent.parent
-    templates_dir = project_root / "templates"
+    project_root = Path(f"./generated_websites/{project_name}/")
 
     sevdo_files = {}
-    if templates_dir.exists():
-        for file_path in templates_dir.rglob("*.s"):
+    if project_root.exists():
+        for file_path in project_root.rglob("*.s"):
             try:
                 content = file_path.read_text(encoding="utf-8")
                 relative_path = str(file_path.relative_to(project_root))
@@ -31,109 +30,16 @@ def discover_sevdo_files() -> Dict[str, str]:
     return sevdo_files
 
 
-def generate_file_paths(task: str, model: str = "gpt-oss:20b") -> List[str]:
-    """
-    Generate file paths that need to be created or modified for a given task.
-    Returns list of file paths (both new files and existing files to modify).
-    """
-    # Get existing project context
-    sevdo_files = discover_sevdo_files()
-
-    # Add file context to prompt
-    file_context = ""
-    if sevdo_files:
-        file_context = "\n\nExisting files in project:\n"
-        for file_path in sevdo_files.keys():
-            file_context += f"- {file_path}\n"
-
-    # Build system prompt
-    system_prompt = (
-        "You are a file path generator for SEVDO projects. Given a task, "
-        "return file paths that need to be created or modified. "
-        "Consider both new files and existing files that need updates."
-        + file_context
-    )
-
-    # Create user prompt
-    user_prompt = f"Task: {task}\n\nReturn file paths needed for this task."
-
-    # Call LLM gateway via HTTP (same pattern as coding_agent) using JSON body
-    try:
-        base_url = os.environ.get(
-            "LLM_GATEWAY_URL", "http://192.168.16.103:8000"
-        )
-        url_simple = f"{base_url}/ollama"
-        payload = {
-            "model": model,
-            "prompt": user_prompt,
-            "system_prompt": system_prompt,
-        }
-
-        http_resp = requests.post(url_simple, json=payload, timeout=60)
-
-        data = http_resp.json()
-        content = data.get("content")
-
-        logger.debug(f"AI response: {content}")
-    except Exception as e:
-        logger.error(f"Error calling LLM gateway: {e}")
-        return []
-
-    # Parse file paths from content
-    try:
-        lines = content.strip().split("\n")
-        paths = []
-        for line in lines:
-            line = line.strip()
-            # Skip empty lines and obvious non-path lines
-            if line and (
-                "/" in line or ".s" in line or ".py" in line or ".jsx" in line
-            ):
-                # Clean up bullet points, numbers, etc
-                cleaned = (
-                    line.replace("- ", "")
-                    .replace("* ", "")
-                    .replace("1. ", "")
-                    .replace("2. ", "")
-                )
-                cleaned = (
-                    cleaned.replace("3. ", "")
-                    .replace("4. ", "")
-                    .replace("5. ", "")
-                    .replace("6. ", "")
-                )
-                cleaned = cleaned.replace("File path: ", "").strip()
-
-                # Extract path from backticks if present: `path` description -> path
-                if "`" in cleaned:
-                    match = re.search(r"`([^`]+)`", cleaned)
-                    if match:
-                        cleaned = match.group(1).strip()
-
-                # Remove everything after first space (descriptions)
-                cleaned = cleaned.split()[0] if cleaned.split() else cleaned
-
-                if cleaned and (
-                    "/" in cleaned or cleaned.endswith((".s", ".py", ".jsx"))
-                ):
-                    paths.append(cleaned)
-
-        return paths
-    except Exception as e:
-        logger.error(f"Error parsing file paths: {e}")
-        logger.debug(f"Raw content: {content}")
-        # Fallback: return empty list
-        return []
-
-
-def plan_subtasks(task: str, model: str = "gpt-oss:20b") -> Dict[str, Any]:
+def plan_subtasks(
+    task: str, project_name: str, model: str = "llama3.2:3b"
+) -> Dict[str, Any]:
     """
     Enhanced planning that uses file discovery and RAG for context-aware task decomposition.
     Returns subtasks with file context and suggested SEVDO tokens.
     """
 
     # Discover existing SEVDO files for context
-    sevdo_files = discover_sevdo_files()
+    sevdo_files = discover_sevdo_files(project_name)
 
     # Build file context for the prompt
     file_context = ""
@@ -141,23 +47,37 @@ def plan_subtasks(task: str, model: str = "gpt-oss:20b") -> Dict[str, Any]:
         file_context = "\n\nExisting SEVDO files in project:\n"
         for file_path, content in sevdo_files.items():
             file_context += f"- {file_path}: {content.strip()[:100]}...\n"
-        file_context += "\nWhen modifying existing files, reference them specifically in subtasks.\n"
-
+    print(file_context)
     system_prompt = (
         "You are a sprintmaster working with an existing SEVDO project. Break the user's task into "
-        "the smallest set of absolutely necessary subtasks. For modifications to existing files, "
-        "specify the exact file to modify. For new features, create specific subtasks."
+        "the smallest set of absolutely necessary subtasks. Be very sure to be stingy with the amount of subtasks."
+        "For modifications to existing files, specify the exact file path, like 'frontend/.s/Home.s' to modify separate from the task description."
         "\n\nRules:"
-        "\n- Return 1-4 bullet points, each a short imperative phrase"
+        "\n- Return 1-3 bullet points, each a short imperative phrase"
         "\n- Provide difficulty level 1-3 for each subtask"
-        "\n- Reference specific .s files when modifying existing components"
-        "\n- Use format: 'Modify {file}: change X to Y' or 'Create new component: description'"
+        "\n- Provide the exact file path to modify"
         "\n\nSEVDO uses letters/groups for components (frontend: h,t,i,b,lf,rf; backend: l,r,m,o)"
         + file_context
     )
 
     user_prompt = f"Task: {task}\n\nProvide focused subtasks that leverage the available patterns and tokens."
 
+    format = {
+        "type": "object",
+        "properties": {
+            "subtasks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "task": {"type": "string"},
+                        "difficulty": {"type": "number"},
+                        "file_path": {"type": "string"},
+                    },
+                },
+            }
+        },
+    }
     try:
         base_url = os.environ.get(
             "LLM_GATEWAY_URL", "http://192.168.16.103:8000"
@@ -169,6 +89,7 @@ def plan_subtasks(task: str, model: str = "gpt-oss:20b") -> Dict[str, Any]:
             "model_name": model,
             "prompt": user_prompt,
             "system_prompt": system_prompt,
+            "format": format,
         }
 
         http_resp = requests.post(url_fc, json=payload, timeout=60)
@@ -178,7 +99,7 @@ def plan_subtasks(task: str, model: str = "gpt-oss:20b") -> Dict[str, Any]:
         data = http_resp.json()
         content = data.get("content")
         print(content)
-        logger.debug(content)
+        logger.info(content)
     except Exception as e:
         logger.error(f"Error calling LLM gateway: {e}")
         content = ""
@@ -187,26 +108,22 @@ def plan_subtasks(task: str, model: str = "gpt-oss:20b") -> Dict[str, Any]:
         if "subtasks" not in subtasks:
             logger.warning(f"No 'subtasks' key in response: {subtasks}")
             # Fallback: create simple subtask list
-            subtasks = {
-                "subtasks": [
-                    {"description": "Complete the task", "difficulty": 2}
-                ]
-            }
+        for i, sub in enumerate(subtasks["subtasks"]):
+            sub_path = sub.get("file_path")
+
+            subtasks["subtasks"][i]["file_content"] = sevdo_files[sub_path]
     except (json.JSONDecodeError, KeyError) as e:
         logger.error(f"Error parsing ollama response: {e}")
         logger.debug(f"Raw content: {content}")
-        # Fallback to simple format
-        subtasks = {
-            "subtasks": [{"description": "Complete the task", "difficulty": 2}]
-        }
 
     return {"subtasks": subtasks["subtasks"]}
 
 
 def execute_task(
     task: str,
-    master_model: str = "gpt-oss:20b",
-    code_model: str = "gpt-oss:20b",
+    project_name: str,
+    master_model: str = "llama3.2:3b",
+    code_model: str = "llama3.2:3b",
 ) -> Dict[str, Any]:
     """
     Enhanced task execution using RAG system for context-aware planning and execution.
@@ -215,20 +132,32 @@ def execute_task(
     rag_service = AgentRAGService()
 
     # Use RAG-enhanced planning
-    planning_result = plan_subtasks(task, model=master_model)
+    planning_result = plan_subtasks(task, project_name, model=master_model)
     subtasks = planning_result["subtasks"]
 
     # Execute subtasks with RAG context
     results: List[Dict[str, Any]] = []
     for sub in subtasks:
-        # Handle both dict and string formats for compatibility
-        if isinstance(sub, dict):
-            sub_description = sub.get("task", str(sub))
-        else:
-            sub_description = str(sub)
+        sub_description = sub.get("task")
+        sub_content = sub.get("file_content")
 
-        result = solve_subtask(sub_description, rag_service, model=code_model)
-        # Add RAG metadata to result
+        result = solve_subtask(
+            f"{sub_description}\n. This is the current file content:\n{sub_content}",
+            rag_service,
+            model=code_model,
+        )
+        result["file_path"] = (
+            f"generated_websites/{project_name}/{sub.get('file_path')}"
+        )
+
+        # Write result to disk using shared helper
+        wrote = safe_write_file(result["file_path"], result["output"])
+        result["wrote_to_disk"] = wrote
+
         results.append(result)
 
     return {"task": task, "subtasks": subtasks, "results": results}
+
+
+if __name__ == "__main__":
+    discover_sevdo_files()
