@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 
 export default function Blog_SiteArticlePage() {
-  const articleNavigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { slug } = useParams();
   const navigate = useNavigate();
+  const articleNavigate = useNavigate();
+  const { slug } = useParams();
 
   const [articleData, setArticleData] = useState(null);
   const [articleLoading, setArticleLoading] = useState(true);

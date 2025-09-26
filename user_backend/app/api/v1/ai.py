@@ -3,8 +3,7 @@ from datetime import datetime, timezone
 import os
 from typing import Any, Dict, List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from fastapi import Query  # noqa: F401 (reserved for future query param utilities)
-
+from fastapi import Query
 import subprocess
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -468,7 +467,6 @@ def detect_business_type(description: str) -> str:
     return "general"
 
 
-# user_backend/app/api/v1/ai.py - FIXED rebuild logic
 @router.post("/change-project-from-description")
 async def change_project_from_description(
     request: ChangeProjectRequest,
@@ -543,25 +541,57 @@ async def change_project_from_description(
                         except Exception as e:
                             logger.error(f"   ❌ Failed to compile {s_file.name}: {e}")
 
-                # Trigger hot reload by touching a file
-                try:
-                    import httpx
+                # REBUILD REACT APP
+                logger.info("🔨 Rebuilding React app...")
 
-                    # Call preview manager to trigger reload
-                    async with httpx.AsyncClient() as client:
-                        await client.post(
-                            "http://preview-manager:8080/reload",
-                            json={"project_id": request.project_name},
+                try:
+                    build_result = subprocess.run(
+                        ["npm", "run", "build"],
+                        cwd=str(frontend_dir),
+                        capture_output=True,
+                        text=True,
+                        timeout=180,  # 3 minutes
+                    )
+
+                    if build_result.returncode == 0:
+                        logger.info("✅ React rebuild successful")
+
+                        # Verify build directory was updated
+                        build_dir = frontend_dir / "build"
+                        if build_dir.exists():
+                            # Create marker file
+                            marker = build_dir / ".last_build"
+                            marker.write_text(str(datetime.now()))
+                            logger.info(f"   📝 Build marker created")
+
+                        response["rebuild_success"] = True
+                        response["message"] = (
+                            f"Applied {amount_success} changes and rebuilt app"
                         )
 
-                    logger.info("🔄 Hot reload triggered")
+                    else:
+                        logger.error(f"❌ Build failed: {build_result.stderr}")
+                        response["rebuild_success"] = False
+                        response["message"] = (
+                            f"Applied {amount_success} changes but rebuild failed"
+                        )
+
+                except subprocess.TimeoutExpired:
+                    logger.error("❌ Build timed out")
+                    response["rebuild_success"] = False
+                    response["message"] = (
+                        f"Applied {amount_success} changes but rebuild timed out"
+                    )
 
                 except Exception as e:
-                    logger.warning(f"Could not trigger hot reload: {e}")
+                    logger.error(f"❌ Build error: {e}")
+                    response["rebuild_success"] = False
+                    response["message"] = (
+                        f"Applied {amount_success} changes but rebuild failed: {str(e)}"
+                    )
 
             return {
                 **response,
-                "message": f"Applied {amount_success} changes successfully",
                 "rebuild_triggered": True,
             }
 
@@ -577,269 +607,3 @@ async def change_project_from_description(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to apply changes: {str(e)}",
         )
-
-
-def simple_rebuild(project_name: str, frontend_path: str):
-    import subprocess
-
-    try:
-        print(f"{'=' * 80}")
-        print(f"REBUILD: {project_name}")
-        print(f"{'=' * 80}")
-
-        result = subprocess.run(
-            ["npm", "run", "build"],
-            cwd=frontend_path,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-
-        print(f"Return code: {result.returncode}")
-        print(f"STDOUT: {result.stdout}")
-
-        if result.returncode == 0:
-            print(f"✅ Rebuild successful")
-        else:
-            print(f"❌ Rebuild failed: {result.stderr}")
-
-    except Exception as e:
-        print(f"❌ Error: {e}")
-
-
-async def send_websocket_notification(
-    generation_id: str, message: str, status: str, progress: int, changes: list = None
-):
-    """
-    Send WebSocket notification to connected clients
-    """
-    try:
-        from user_backend.app.api.v1.websockets import manager
-
-        notification_data = {
-            "type": "preview_update",
-            "data": {
-                "generation_id": generation_id,
-                "message": message,
-                "status": status,
-                "progress": progress,
-                "changes": changes or [],
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            },
-        }
-
-        await manager.broadcast(notification_data)
-        logger.info(f"WebSocket notification sent: {message}")
-
-    except Exception as e:
-        logger.error(f"Failed to send WebSocket notification: {str(e)}")
-
-
-# Add this test endpoint to your ai.py to debug the issue
-
-
-@router.post("/test-edit")
-async def test_ai_edit(request: ChangeProjectRequest):
-    """
-    Test endpoint to diagnose AI edit issues
-    """
-    try:
-        logger.info(
-            f"Test edit called: {request.description}, project: {request.project_name}"
-        )
-
-        # Check if project exists
-        project_path = Path(f"generated_websites/{request.project_name}")
-
-        response = {
-            "status": "test",
-            "project_name": request.project_name,
-            "description": request.description,
-            "project_exists": project_path.exists(),
-            "project_path": str(project_path),
-        }
-
-        if project_path.exists():
-            # List .s files
-            frontend_s_dir = project_path / "frontend" / ".s"
-            if frontend_s_dir.exists():
-                s_files = list(frontend_s_dir.glob("*.s"))
-                response["s_files"] = [f.name for f in s_files]
-            else:
-                response["s_files"] = []
-                response["error"] = "No .s directory found"
-
-        logger.info(f"Test response: {response}")
-        return response
-
-    except Exception as e:
-        logger.error(f"Test failed: {str(e)}")
-        return {"status": "error", "error": str(e)}
-
-
-@router.post("/simple-edit")
-async def simple_ai_edit(
-    request: ChangeProjectRequest, background_tasks: BackgroundTasks
-):
-    """
-    Simplified AI edit without the complex retry logic
-    """
-    try:
-        logger.info(f"Simple edit: {request.description} for {request.project_name}")
-
-        # Validate project
-        project_path = Path(f"generated_websites/{request.project_name}")
-        if not project_path.exists():
-            raise HTTPException(
-                status_code=404, detail=f"Project not found: {request.project_name}"
-            )
-
-        # Try ONE execution
-        try:
-            response = execute_task(
-                task=request.description, project_name=request.project_name
-            )
-        except Exception as task_error:
-            logger.error(f"Task execution error: {task_error}")
-            raise HTTPException(
-                status_code=500, detail=f"Task execution failed: {str(task_error)}"
-            )
-
-        # Count successes
-        if not response or "results" not in response:
-            raise HTTPException(
-                status_code=500, detail="Invalid response from task execution"
-            )
-
-        success_count = 0
-        for result in response.get("results", []):
-            if result.get("compilation", {}).get("success"):
-                success_count += 1
-
-        # Schedule rebuild if we have successes
-        if success_count > 0:
-            frontend_path = project_path / "frontend"
-            if frontend_path.exists():
-                background_tasks.add_task(
-                    simple_rebuild,
-                    project_name=request.project_name,
-                    frontend_path=str(frontend_path),
-                )
-                response["rebuild_scheduled"] = True
-
-        response["success_count"] = success_count
-        response["total_count"] = len(response.get("results", []))
-
-        return response
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Simple edit failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Add this to your ai.py for direct testing
-
-
-@router.post("/direct-edit")
-async def direct_edit(request: Dict[str, Any], background_tasks: BackgroundTasks):
-    """
-    Direct edit that bypasses AI - just replace text directly
-    Useful for testing the rebuild flow
-    """
-    try:
-        project_name = request.get("project_name")
-        file_path = request.get("file_path", "frontend/.s/Home.s")
-        old_text = request.get("old_text", "")
-        new_text = request.get("new_text", "")
-
-        if not all([project_name, old_text, new_text]):
-            raise HTTPException(400, "Missing required fields")
-
-        # Find the file
-        project_path = Path(f"generated_websites/{project_name}")
-        full_path = project_path / file_path
-
-        if not full_path.exists():
-            raise HTTPException(404, f"File not found: {full_path}")
-
-        # Read current content
-        content = full_path.read_text()
-
-        # Replace text
-        if old_text not in content:
-            raise HTTPException(400, f"Text '{old_text}' not found in file")
-
-        new_content = content.replace(old_text, new_text)
-
-        # Write back
-        full_path.write_text(new_content)
-
-        logger.info(
-            f"Direct edit: replaced '{old_text}' with '{new_text}' in {file_path}"
-        )
-
-        # Recompile the .s file to React
-        try:
-            import requests as req
-
-            compile_response = req.post(
-                "http://sevdo-frontend:8002/api/fe-translate/to-s-direct",
-                json={
-                    "dsl_content": new_content,
-                    "component_name": full_path.stem.capitalize(),
-                    "include_imports": True,
-                },
-                timeout=10,
-            )
-
-            if compile_response.status_code == 200:
-                react_code = compile_response.json()["code"]
-
-                # Write React component
-                react_path = (
-                    project_path
-                    / "frontend"
-                    / "src"
-                    / "components"
-                    / f"{full_path.stem.capitalize()}.jsx"
-                )
-                react_path.write_text(react_code)
-
-                logger.info(f"✅ Recompiled {full_path.stem}.jsx")
-
-                # Schedule rebuild
-                frontend_path = project_path / "frontend"
-                background_tasks.add_task(
-                    simple_rebuild,
-                    project_name=project_name,
-                    frontend_path=str(frontend_path),
-                )
-
-                return {
-                    "success": True,
-                    "message": "Edit applied successfully",
-                    "old_text": old_text,
-                    "new_text": new_text,
-                    "file_path": str(full_path),
-                    "rebuild_scheduled": True,
-                }
-            else:
-                raise Exception(f"Compilation failed: {compile_response.text}")
-
-        except Exception as e:
-            logger.error(f"Compilation/rebuild failed: {e}")
-            return {
-                "success": True,
-                "message": "Edit applied but compilation failed",
-                "error": str(e),
-                "old_text": old_text,
-                "new_text": new_text,
-            }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Direct edit failed: {e}")
-        raise HTTPException(500, str(e))

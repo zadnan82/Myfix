@@ -84,7 +84,7 @@ def plan_subtasks(
         "\n- Return 1-3 bullet points, each a short imperative phrase"
         "\n- Provide difficulty level 1-3 for each subtask"
         "\n- Provide the exact file path to modify (use paths from the list above)"
-        + file_context
+        "\n- Each subtask MUST have a clear 'task' description" + file_context
     )
 
     user_prompt = f"Task: {task}\n\nProvide focused subtasks that leverage the available patterns and tokens."
@@ -101,6 +101,7 @@ def plan_subtasks(
                         "difficulty": {"type": "number"},
                         "file_path": {"type": "string"},
                     },
+                    "required": ["task", "file_path"],
                 },
             }
         },
@@ -123,17 +124,34 @@ def plan_subtasks(
 
         subtasks_data = json.loads(content)
 
+        # DEBUG logging
+        logger.info(f"📋 Planning for task: '{task}'")
+        logger.info(f"   LLM returned: {content[:200]}...")
+
         # Attach file content to each subtask
-        for subtask in subtasks_data.get("subtasks", []):
+        for idx, subtask in enumerate(subtasks_data.get("subtasks", [])):
+            task_desc = subtask.get("task", "")
             file_path = subtask.get("file_path", "")
+
+            logger.info(f"   Subtask {idx}: '{task_desc}' → {file_path}")
+
+            if not task_desc:
+                logger.error(f"      ❌ Empty task description!")
+                subtask["task"] = task  # Fallback to original task
+
             if file_path in sevdo_files:
                 subtask["file_content"] = sevdo_files[file_path]
+                logger.info(
+                    f"      ✅ File content attached ({len(sevdo_files[file_path])} chars)"
+                )
             else:
+                logger.warning(f"      ⚠️  Path '{file_path}' not in sevdo_files")
                 # Try to find closest match
                 for known_path in sevdo_files:
                     if file_path in known_path or known_path in file_path:
                         subtask["file_path"] = known_path
                         subtask["file_content"] = sevdo_files[known_path]
+                        logger.info(f"      ✅ Found match: {known_path}")
                         break
 
         return {"subtasks": subtasks_data.get("subtasks", [])}
@@ -178,9 +196,25 @@ def execute_task(
         logger.info(f"🔄 [{i + 1}/{len(subtasks)}] {sub_description}")
         logger.info(f"   📁 Target: {sub_file_path}")
 
+        # CRITICAL: Build complete subtask string properly
+        if sub_description and sub_content:
+            complete_subtask = (
+                f"{sub_description}\n\nCurrent file content:\n{sub_content}"
+            )
+        else:
+            logger.error(f"   ❌ Missing task or content - skipping")
+            results.append(
+                {
+                    "subtask": sub_description or "Unknown",
+                    "error": "Missing task description or file content",
+                    "compilation": {"success": False},
+                }
+            )
+            continue
+
         # Execute subtask
         result = solve_subtask(
-            f"{sub_description}\n\nCurrent file content:\n{sub_content}",
+            complete_subtask,
             rag_service,
             model=code_model,
         )

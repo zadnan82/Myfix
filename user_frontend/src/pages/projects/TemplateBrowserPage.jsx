@@ -97,55 +97,8 @@ const TemplateBrowserPage = () => {
     };
   }, [result]);
 
-  const handlePreviewUpdate = (data) => {
-    console.log('Handling preview update:', data);
-    
-    if (data.status === 'building') {
-      showNotification(`${data.message} (${data.progress}%)`, 'info');
-      setIsEditing(true);
-    } 
-    else if (data.status === 'completed') {
-      showNotification(data.message, 'success');
-      setIsEditing(false);
-      
-      if (window.previewWindow && !window.previewWindow.closed) {
-        setTimeout(() => {
-          window.previewWindow.location.reload();
-          showNotification('Preview refreshed with your changes!', 'success');
-        }, 500);
-      }
-      
-      setEditHistory(prev => [...prev, {
-        instruction: data.changes?.join(', ') || 'Build completed',
-        timestamp: data.timestamp,
-        success: true,
-        changes: data.changes || []
-      }]);
-    } 
-    else if (data.status === 'error') {
-      showNotification(`Build failed: ${data.message}`, 'error');
-      setIsEditing(false);
-      
-      setEditHistory(prev => [...prev, {
-        instruction: 'Build failed',
-        timestamp: data.timestamp,
-        success: false,
-        error: data.message
-      }]);
-    }
-  };
-
-  const openBuiltPreview = () => {
-    if (!result || !result.generation_id) {
-      showNotification('No generated website to preview', 'error');
-      return;
-    }
-
-    const builtUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/preview-built/${result.generation_id}/`;
-    console.log('Opening built preview:', builtUrl);
-    window.previewWindow = window.open(builtUrl, `preview_${result.generation_id}`, 'width=1200,height=800,scrollbars=yes,resizable=yes');
-    showNotification('Opening built website preview', 'info');
-  };
+  
+   
 
   const generateWebsite = async () => {
     if (!projectName.trim()) {
@@ -323,124 +276,226 @@ const TemplateBrowserPage = () => {
       showNotification('Download failed: ' + error.message, 'error');
     }
   };
+  
+ const applyAIEdit = async () => {
+  if (!result || !result.generation_id || !editPrompt.trim()) {
+    showNotification('Please enter an editing instruction', 'error');
+    return;
+  }
 
-  const applyAIEdit = async () => {
-    if (!result || !result.generation_id || !editPrompt.trim()) {
-      showNotification('Please enter an editing instruction', 'error');
-      return;
-    }
-
-    setIsEditing(true);
+  setIsEditing(true);
+  
+  try {
+    console.log(`Applying AI edit: ${editPrompt}`);
     
-    try {
-      console.log(`Applying AI edit: ${editPrompt}`);
-      
-      const response = await apiClient.post('/api/v1/ai/change-project-from-description', {
-        description: editPrompt,
-        project_name: result.generation_id,
-      });
+    const response = await apiClient.post('/api/v1/ai/change-project-from-description', {
+      description: editPrompt,
+      project_name: result.generation_id,
+    });
 
-      console.log('AI edit response:', response);
-      
-      const successCount = response.results?.filter(r => r.compilation?.success).length || 0;
-      const totalCount = response.results?.length || 0;
-      
-      if (successCount > 0) {
-        setEditHistory(prev => [...prev, {
-          instruction: editPrompt,
-          timestamp: new Date().toISOString(),
-          success: true,
-          status: 'completed',
-          summary: `${successCount}/${totalCount} changes applied`
-        }]);
-
-        setTimeout(() => {
-    showNotification('Build should be complete. Click Refresh Preview now!', 'success');
-  }, 30000); // 30 seconds
-        
-        setEditPrompt('');
-        showNotification(`Changes applied successfully! (${successCount}/${totalCount})`, 'success');
-        showNotification('Click "Refresh Preview" to see your changes', 'info');
-      } else {
-        throw new Error('No successful changes applied');
-      }
-      
-    } catch (error) {
-      console.error('AI edit failed:', error);
-      
+    console.log('AI edit response:', response);
+    
+    const successCount = response.results?.filter(r => r.compilation?.success).length || 0;
+    const totalCount = response.results?.length || 0;
+    
+    if (successCount > 0) {
+      // Add to history as "building"
       setEditHistory(prev => [...prev, {
         instruction: editPrompt,
         timestamp: new Date().toISOString(),
-        success: false,
-        error: error.response?.data?.detail || error.message
+        success: true,
+        status: 'building',
+        summary: `${successCount}/${totalCount} changes applied - rebuilding app...`
       }]);
+
+      setEditPrompt('');
+      showNotification(`Changes applied successfully! (${successCount}/${totalCount})`, 'success');
       
-      showNotification('Edit failed: ' + (error.response?.data?.detail || error.message), 'error');
-    } finally {
-      setIsEditing(false);
-    }
-  };
+      // Check if rebuild was successful
+      if (response.rebuild_success) {
+        showNotification('Build completed! Refreshing preview in 2 seconds...', 'success');
+        
+        // Update history
+        setEditHistory(prev => {
+          const updated = [...prev];
+          if (updated.length > 0) {
+            updated[updated.length - 1].status = 'completed';
+            updated[updated.length - 1].summary = `${successCount}/${totalCount} changes applied - build completed`;
+          }
+          return updated;
+        });
 
-  const refreshPreview = () => {
-    if (!result || !result.generation_id) {
-      showNotification('No preview window to refresh', 'error');
-      return;
-    }
-
-    const builtUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/preview-built/${result.generation_id}/`;
-
-    if (window.previewWindow && !window.previewWindow.closed) {
-      try {
-        // Use postMessage to trigger refresh (cross-origin safe)
-        // Or just reopen the window with the same URL to force refresh
-        window.previewWindow.location.href = builtUrl;
-        showNotification('Preview refreshed successfully!', 'success');
-      } catch (e) {
-        console.error('Failed to refresh preview:', e);
-        // If that fails, close and reopen
-        window.previewWindow.close();
-        window.previewWindow = window.open(
-          builtUrl, 
-          `preview_${result.generation_id}`, 
-          'width=1200,height=800,scrollbars=yes,resizable=yes'
-        );
-        showNotification('Preview window reopened', 'success');
+        // AUTO-REFRESH PREVIEW
+        setTimeout(() => {
+          refreshPreview();
+          showNotification('Preview refreshed with your changes!', 'success');
+        }, 2000);
+        
+      } else if (response.rebuild_triggered) {
+        showNotification('Build in progress... Auto-refresh in 60 seconds', 'info');
+        
+        // Wait for build to complete, then auto-refresh
+        setTimeout(() => {
+          refreshPreview();
+          showNotification('Preview refreshed! (Build may still be completing)', 'success');
+          
+          setEditHistory(prev => {
+            const updated = [...prev];
+            if (updated.length > 0) {
+              updated[updated.length - 1].status = 'completed';
+              updated[updated.length - 1].summary = `${successCount}/${totalCount} changes applied`;
+            }
+            return updated;
+          });
+        }, 60000); // 60 seconds
+        
+      } else {
+        showNotification('Changes applied but rebuild may have failed. Check logs.', 'warning');
       }
+      
     } else {
-      // No preview window open - open a new one
+      throw new Error('No successful changes applied');
+    }
+    
+  } catch (error) {
+    console.error('AI edit failed:', error);
+    
+    setEditHistory(prev => [...prev, {
+      instruction: editPrompt,
+      timestamp: new Date().toISOString(),
+      success: false,
+      status: 'failed',
+      error: error.response?.data?.detail || error.message
+    }]);
+    
+    showNotification('Edit failed: ' + (error.response?.data?.detail || error.message), 'error');
+  } finally {
+    setIsEditing(false);
+  }
+};
+
+// 2. Refresh Preview - Reloads the preview window
+const refreshPreview = () => {
+  if (!result || !result.generation_id) {
+    showNotification('No preview window to refresh', 'error');
+    return;
+  }
+
+  const builtUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/preview-built/${result.generation_id}/`;
+
+  if (window.previewWindow && !window.previewWindow.closed) {
+    try {
+      // Force refresh by reloading the URL
+      window.previewWindow.location.href = builtUrl;
+      showNotification('Preview refreshed successfully!', 'success');
+    } catch (e) {
+      console.error('Failed to refresh preview:', e);
+      // If that fails, close and reopen
+      window.previewWindow.close();
       window.previewWindow = window.open(
         builtUrl, 
         `preview_${result.generation_id}`, 
         'width=1200,height=800,scrollbars=yes,resizable=yes'
       );
-      showNotification('Preview window opened', 'success');
+      showNotification('Preview window reopened', 'success');
     }
-  };
+  } else {
+    // No preview window open - open a new one
+    window.previewWindow = window.open(
+      builtUrl, 
+      `preview_${result.generation_id}`, 
+      'width=1200,height=800,scrollbars=yes,resizable=yes'
+    );
+    showNotification('Preview window opened', 'success');
+  }
+};
 
-  const showNotification = (message, type = 'info') => {
-    const notification = document.createElement('div');
-    notification.textContent = message;
+// 3. Open Built Preview - Opens the preview window initially
+const openBuiltPreview = () => {
+  if (!result || !result.generation_id) {
+    showNotification('No generated website to preview', 'error');
+    return;
+  }
+
+  const builtUrl = `${apiClient.baseURL}/api/v1/templates/${result.template_type}/preview-built/${result.generation_id}/`;
+  console.log('Opening built preview:', builtUrl);
+  
+  window.previewWindow = window.open(
+    builtUrl, 
+    `preview_${result.generation_id}`, 
+    'width=1200,height=800,scrollbars=yes,resizable=yes'
+  );
+  
+  showNotification('Opening built website preview', 'info');
+};
+
+// 4. Handle Preview Update (from WebSocket) - Keep as is
+const handlePreviewUpdate = (data) => {
+  console.log('Handling preview update:', data);
+  
+  if (data.status === 'building') {
+    showNotification(`${data.message} (${data.progress}%)`, 'info');
+    setIsEditing(true);
+  } 
+  else if (data.status === 'completed') {
+    showNotification(data.message, 'success');
+    setIsEditing(false);
     
-    const colors = {
-      success: 'bg-green-500',
-      error: 'bg-red-500', 
-      info: 'bg-blue-500',
-      warning: 'bg-yellow-500'
-    };
-    
-    notification.className = `fixed top-4 right-4 z-50 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg transition-all duration-300 max-w-md`;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-      notification.style.opacity = '0';
+    if (window.previewWindow && !window.previewWindow.closed) {
       setTimeout(() => {
-        if (notification.parentNode) {
-          notification.remove();
-        }
-      }, 300);
-    }, 4000);
+        window.previewWindow.location.reload();
+        showNotification('Preview refreshed with your changes!', 'success');
+      }, 500);
+    }
+    
+    setEditHistory(prev => [...prev, {
+      instruction: data.changes?.join(', ') || 'Build completed',
+      timestamp: data.timestamp,
+      success: true,
+      changes: data.changes || []
+    }]);
+  } 
+  else if (data.status === 'error') {
+    showNotification(`Build failed: ${data.message}`, 'error');
+    setIsEditing(false);
+    
+    setEditHistory(prev => [...prev, {
+      instruction: 'Build failed',
+      timestamp: data.timestamp,
+      success: false,
+      error: data.message
+    }]);
+  }
+};
+
+// 5. Show Notification - Existing function is fine
+const showNotification = (message, type = 'info') => {
+  const notification = document.createElement('div');
+  notification.textContent = message;
+  
+  const colors = {
+    success: 'bg-green-500',
+    error: 'bg-red-500', 
+    info: 'bg-blue-500',
+    warning: 'bg-yellow-500'
   };
+  
+  notification.className = `fixed top-4 right-4 z-50 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg transition-all duration-300 max-w-md`;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 300);
+  }, 4000);
+};
+
+
+  
 
   const resetForm = () => {
     setResult(null);

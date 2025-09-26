@@ -192,3 +192,42 @@ app.include_router(router)
 @app.get("/")
 async def root():
     return {"name": "SEVDO Preview Manager", "version": "1.0.0", "status": "running"}
+
+
+@router.post("/reload")
+async def trigger_reload(request: dict):
+    """Trigger reload for a project"""
+    try:
+        project_id = request.get("project_id")
+
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id is required")
+
+        preview_manager = get_preview_manager()
+
+        # Check if preview exists
+        preview_data = preview_manager.get_preview(project_id)
+
+        if preview_data:
+            # Trigger reload by touching a file
+            success = preview_manager.trigger_reload(project_id)
+
+            if success:
+                return {
+                    "success": True,
+                    "message": f"Reload triggered for {project_id}",
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Could not trigger reload for {project_id}",
+                }
+        else:
+            return {
+                "success": False,
+                "message": f"No active preview found for {project_id}",
+            }
+
+    except Exception as e:
+        logger.error(f"Reload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Reload failed: {str(e)}")
